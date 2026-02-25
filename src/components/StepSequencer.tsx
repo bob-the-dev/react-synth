@@ -18,14 +18,9 @@ interface StepSequencerProps {
   audioContextRef: RefObject<AudioContext | null>;
 }
 
-type TupletRatio = "1" | "2" | "3" | "4" | "5" | "6" | "7";
+type TupletRatio = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7";
 
-interface StepData {
-  noteIndex: number | null; // index in notes array, or null if no note
-  tuplet: TupletRatio;
-}
-
-type SequenceStep = StepData[];
+type SequenceStep = TupletRatio[];
 
 function StepSequencer({
   onPlayNote,
@@ -38,51 +33,34 @@ function StepSequencer({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [sequence, setSequence] = useState<SequenceStep[]>(() => {
-    // 8 steps with randomized melodic pattern and tuplets
-    const tupletOptions: TupletRatio[] = ["1", "2", "3", "4", "5", "6", "7"];
-    const defaultSequence: SequenceStep[] = Array(8)
+    // 8 steps, 3 tracks per step
+    const tupletOptions: TupletRatio[] = ["2", "3", "4", "5"];
+
+    // Initialize with sparse pattern - mainly track 0 with a few notes
+    return Array(8)
       .fill(null)
-      .map(() => []);
+      .map((_, stepIndex) => {
+        const step: TupletRatio[] = ["0", "0", "0"]; // All empty by default
 
-    if (notes.length >= 3) {
-      // Define rhythmic patterns (which steps get notes) - more dense patterns
-      const rhythmPatterns = [
-        [0, 1, 2, 4, 5, 6], // Busy pattern
-        [0, 2, 3, 4, 5, 7], // Dense syncopated
-        [0, 1, 2, 3, 5, 7], // Front-loaded
-        [0, 1, 4, 5, 6, 7], // Grouped
-        [0, 2, 3, 4, 6, 7], // Dense with gap
-        [0, 1, 2, 3, 4, 5, 6, 7], // All steps (very busy)
-      ];
+        // Fill track 0 with some tuplets (about 4-5 out of 8 steps)
+        if (
+          stepIndex === 0 ||
+          stepIndex === 2 ||
+          stepIndex === 4 ||
+          stepIndex === 6
+        ) {
+          step[0] =
+            tupletOptions[Math.floor(Math.random() * tupletOptions.length)];
+        }
 
-      // Pick a random rhythm pattern
-      const rhythm =
-        rhythmPatterns[Math.floor(Math.random() * rhythmPatterns.length)];
+        // Add occasional notes in other tracks (1-2 notes total)
+        if (stepIndex === 3) {
+          step[1] =
+            tupletOptions[Math.floor(Math.random() * tupletOptions.length)];
+        }
 
-      // Create a melodic pattern using notes - use more notes
-      const numNotesToUse = 3 + Math.floor(Math.random() * 3); // 3-5 notes
-      const selectedNotes = notes
-        .slice(0, Math.min(notes.length, 8))
-        .sort(() => Math.random() - 0.5)
-        .slice(0, numNotesToUse);
-
-      // Assign notes and random tuplets to rhythm steps
-      rhythm.forEach((step, index) => {
-        const note = selectedNotes[index % selectedNotes.length];
-        const noteIndex = notes.findIndex((n) => n?.name === note.name);
-        const randomTuplet =
-          tupletOptions[Math.floor(Math.random() * tupletOptions.length)];
-
-        defaultSequence[step] = [
-          {
-            noteIndex,
-            tuplet: randomTuplet,
-          },
-        ];
+        return step;
       });
-    }
-
-    return defaultSequence;
   });
 
   const nextStepTimeRef = useRef<number>(0);
@@ -92,35 +70,61 @@ function StepSequencer({
   const sequenceRef = useRef<SequenceStep[]>(sequence);
   const currentBpmRef = useRef<number>(bpm); // Actual BPM used in scheduling
   const targetBpmRef = useRef<number>(bpm); // Target BPM from UI
+  
+  // Track arpeggio position and direction for each track (3 tracks)
+  const arpeggioStateRef = useRef<{
+    index: number;
+    direction: number;
+  }[]>([{ index: 0, direction: 1 }, { index: 0, direction: 1 }, { index: 0, direction: 1 }]);
 
   const stepsPerBar = 8; // 8 quarter notes (2 bars of 4/4)
 
-  // Generate melodic pattern based on tuplet count using arpeggio (root-third-fifth)
-  const getMelodyPattern = (rootNote: Note, tupletCount: number): Note[] => {
+  // Generate melodic pattern with arpeggiated notes with randomization
+  const getMelodyPattern = (
+    rootNote: Note,
+    tupletCount: number,
+    trackIndex: number,
+  ): Note[] => {
     const pattern: Note[] = [];
-    const majorThirdRatio = 5 / 4; // Major third
-    const perfectFifthRatio = 3 / 2; // Perfect fifth
-    const octaveRatio = 2; // Octave
 
-    // Generate arpeggio notes: root, third, fifth, octave, etc.
-    const arpeggioFreqs = [
-      rootNote.freq, // Root
-      rootNote.freq * majorThirdRatio, // Third
-      rootNote.freq * perfectFifthRatio, // Fifth
-      rootNote.freq * octaveRatio, // Octave
-      rootNote.freq * octaveRatio * majorThirdRatio, // Octave + third
-      rootNote.freq * octaveRatio * perfectFifthRatio, // Octave + fifth
-      rootNote.freq * octaveRatio * octaveRatio, // Double octave
-    ];
+    // Major scale intervals (in semitones from root: 0, 2, 4, 5, 7, 9, 11, 12)
+    const majorScaleSemitones = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16];
+    const semitoneRatio = Math.pow(2, 1 / 12); // Equal temperament
 
-    // Create pattern by cycling through arpeggio
+    // Build scale frequencies from root
+    const scaleFreqs = majorScaleSemitones.map(
+      (semitones) => rootNote.freq * Math.pow(semitoneRatio, semitones),
+    );
+
+    // Get current arpeggio state for this track
+    const state = arpeggioStateRef.current[trackIndex];
+    let currentIndex = state.index;
+    let direction = state.direction;
+
     for (let i = 0; i < tupletCount; i++) {
-      const freq = arpeggioFreqs[i % arpeggioFreqs.length];
+      // 70% chance to continue arpeggio, 30% chance to jump randomly
+      if (Math.random() < 0.7) {
+        // Arpeggio: move 1-3 steps in current direction
+        const step = 1 + Math.floor(Math.random() * 3);
+        currentIndex += step * direction;
+
+        // Wrap around if out of bounds
+        currentIndex =
+          ((currentIndex % scaleFreqs.length) + scaleFreqs.length) %
+          scaleFreqs.length;
+      } else {
+        // Random jump to add variety
+        currentIndex = Math.floor(Math.random() * scaleFreqs.length);
+      }
+
       pattern.push({
-        name: `${rootNote.name}_arp${i}`,
-        freq,
+        name: `${rootNote.name}_note${i}`,
+        freq: scaleFreqs[currentIndex],
       });
     }
+
+    // Update arpeggio state for this track
+    arpeggioStateRef.current[trackIndex] = { index: currentIndex, direction };
 
     return pattern;
   };
@@ -168,7 +172,6 @@ function StepSequencer({
     }
 
     const delay = (time - ctx.currentTime) * 1000;
-    const noteDuration = 100; // 100ms note duration
     const secondsPerBeat = 60.0 / currentBpmRef.current;
 
     console.log(
@@ -193,41 +196,49 @@ function StepSequencer({
 
     let notesScheduled = 0;
 
-    // Process each StepData in the array
-    stepData.forEach((data) => {
-      if (data.noteIndex === null) return;
+    // Process each track in the step
+    stepData.forEach((tupletRatio, trackIndex) => {
+      const n = Number(tupletRatio);
+      if (n === 0) return; // Skip empty tracks
 
-      const rootNote = notes[data.noteIndex];
+      // Pick a random root note from the available notes
+      const rootNote = notes[Math.floor(Math.random() * notes.length)];
       if (!rootNote) return;
 
-      // Parse tuplet ratio (single number = how many notes in this step)
-      const n = Number(data.tuplet);
       const stepDuration = secondsPerBeat; // Single step = 1 beat (fixed)
       const noteInterval = stepDuration / n; // Divide step evenly by number of notes
 
-      // Generate melodic pattern
-      const melodyPattern = getMelodyPattern(rootNote, n);
+      // Generate melodic pattern (maintaining arpeggio state per track)
+      const melodyPattern = getMelodyPattern(rootNote, n, trackIndex);
 
-      // Schedule each note in the tuplet
+      // Schedule each note in the tuplet sequentially
       melodyPattern.forEach((note, index) => {
-        const noteDelay = delay + noteInterval * index * 1000; // Convert to ms
+        const noteDelay = delay + noteInterval * index * 1000;
+
+        // Staccato duration: short, fixed length with randomization
+        const baseDuration = 120; // 120ms base duration (short and punchy)
+
+        // Add human randomization: ±20% variation
+        const randomFactor = 0.8 + Math.random() * 0.4; // 0.8 to 1.2
+        const actualDuration = baseDuration * randomFactor;
+
         notesScheduled++;
 
         console.log(
-          `[Sequencer] Scheduling tuplet note ${index + 1}/${n} (${data.tuplet} notes): ${note.name} at ${note.freq}Hz, delay: ${noteDelay.toFixed(2)}ms`,
+          `[Sequencer] Scheduling note ${index + 1}/${n}: ${note.name} at ${note.freq.toFixed(1)}Hz, delay: ${noteDelay.toFixed(2)}ms, duration: ${actualDuration.toFixed(0)}ms`,
         );
 
-        // Schedule note start
+        // Schedule note start with sawtooth for synthy sound
         setTimeout(() => {
-          console.log(`[Sequencer] Playing tuplet note ${note.name}`);
-          onPlayNote(note.name, note.freq, "sine");
+          console.log(`[Sequencer] Playing note ${note.name}`);
+          onPlayNote(note.name, note.freq, "sawtooth");
         }, noteDelay);
 
         // Schedule note stop
         setTimeout(() => {
-          console.log(`[Sequencer] Stopping tuplet note ${note.name}`);
+          console.log(`[Sequencer] Stopping note ${note.name}`);
           onStopNote(note.name);
-        }, noteDelay + noteDuration);
+        }, noteDelay + actualDuration);
       });
     });
 
@@ -362,9 +373,13 @@ function StepSequencer({
             onChange={(e) => {
               const newBpm = Number(e.target.value);
               setBpm(newBpm);
-              targetBpmRef.current = newBpm; // Smooth transition to new BPM
+              targetBpmRef.current = newBpm;
+              // Instantly update BPM when not playing
+              if (!isPlaying) {
+                currentBpmRef.current = newBpm;
+              }
             }}
-            min="40"
+            min="20"
             max="240"
             style={{ marginLeft: "10px", padding: "5px", width: "60px" }}
           />
@@ -412,8 +427,7 @@ function StepSequencer({
                 {Array(stepsPerBar)
                   .fill(null)
                   .map((_, step) => {
-                    const stepData = sequence[step];
-                    const trackData = stepData[trackIndex];
+                    const tupletValue = sequence[step][trackIndex];
 
                     return (
                       <td
@@ -428,94 +442,33 @@ function StepSequencer({
                               : "white",
                         }}
                       >
-                        <div
+                        {/* Tuplet count dropdown */}
+                        <select
+                          value={tupletValue}
+                          onChange={(e) => {
+                            setSequence((prev) => {
+                              const newSequence = [...prev];
+                              newSequence[step][trackIndex] = e.target
+                                .value as TupletRatio;
+                              sequenceRef.current = newSequence;
+                              return newSequence;
+                            });
+                          }}
                           style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "4px",
+                            fontSize: "11px",
+                            padding: "4px",
+                            width: "60px",
                           }}
                         >
-                          {/* Note selection dropdown */}
-                          <select
-                            value={trackData?.noteIndex ?? ""}
-                            onChange={(e) => {
-                              setSequence((prev) => {
-                                const newSequence = [...prev];
-                                const value = e.target.value;
-                                
-                                if (value === "") {
-                                  // Remove this track's data
-                                  newSequence[step] = newSequence[step].filter(
-                                    (_, idx) => idx !== trackIndex,
-                                  );
-                                } else {
-                                  // Set or update this track's note
-                                  const noteIndex = Number(value);
-                                  const newData = {
-                                    noteIndex,
-                                    tuplet: (trackData?.tuplet || "1") as TupletRatio,
-                                  };
-                                  
-                                  if (trackIndex < newSequence[step].length) {
-                                    newSequence[step][trackIndex] = newData;
-                                  } else {
-                                    // Pad array if needed
-                                    while (newSequence[step].length < trackIndex) {
-                                      newSequence[step].push({ noteIndex: null, tuplet: "1" });
-                                    }
-                                    newSequence[step].push(newData);
-                                  }
-                                }
-                                
-                                sequenceRef.current = newSequence;
-                                return newSequence;
-                              });
-                            }}
-                            style={{
-                              fontSize: "11px",
-                              padding: "2px",
-                              width: "70px",
-                            }}
-                          >
-                            <option value="">-</option>
-                            {notes.map((note, idx) => (
-                              <option key={idx} value={idx}>
-                                {note.name}
-                              </option>
-                            ))}
-                          </select>
-
-                          {/* Tuplet selection dropdown */}
-                          {trackData?.noteIndex !== null && trackData?.noteIndex !== undefined && (
-                            <select
-                              value={trackData.tuplet}
-                              onChange={(e) => {
-                                setSequence((prev) => {
-                                  const newSequence = [...prev];
-                                  if (trackIndex < newSequence[step].length) {
-                                    newSequence[step][trackIndex].tuplet = e
-                                      .target.value as TupletRatio;
-                                  }
-                                  sequenceRef.current = newSequence;
-                                  return newSequence;
-                                });
-                              }}
-                              style={{
-                                fontSize: "10px",
-                                padding: "2px",
-                                width: "70px",
-                              }}
-                            >
-                              <option value="1">×1</option>
-                              <option value="2">×2</option>
-                              <option value="3">×3</option>
-                              <option value="4">×4</option>
-                              <option value="5">×5</option>
-                              <option value="6">×6</option>
-                              <option value="7">×7</option>
-                            </select>
-                          )}
-                        </div>
+                          <option value="0">-</option>
+                          <option value="1">×1</option>
+                          <option value="2">×2</option>
+                          <option value="3">×3</option>
+                          <option value="4">×4</option>
+                          <option value="5">×5</option>
+                          <option value="6">×6</option>
+                          <option value="7">×7</option>
+                        </select>
                       </td>
                     );
                   })}
