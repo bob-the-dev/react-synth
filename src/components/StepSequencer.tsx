@@ -1,46 +1,75 @@
-import { RefObject, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as Tone from "tone";
 import GridVisualizer from "./GridVisualizer";
 
-interface Note {
-  name: string;
-  freq: number;
+interface Track {
+  synth: Tone.PolySynth | null;
+  reverb: Tone.JCReverb | null;
+  lfo: Tone.LFO | null;
+  delay: Tone.FeedbackDelay | null;
+  filter: Tone.Filter | null;
+  distortion: Tone.Distortion | null;
 }
 
 interface StepSequencerProps {
-  onPlayNote: (
-    note: string,
-    frequency: number,
-    waveType: OscillatorType,
-  ) => void;
-  onStopNote: (note: string) => void;
-  notes: Note[];
-  grid: (Note | null)[][];
-  audioContextRef: RefObject<AudioContext | null>;
+  tracks: Track[];
+  numTracks: number;
+  trackVolumes: number[];
+  trackMutes: boolean[];
+  onVolumeChange: (trackIndex: number, volume: number) => void;
+  onMuteToggle: (trackIndex: number) => void;
+  onTrackSelect?: (track: number) => void;
 }
 
-type TupletRatio = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7";
+type TupletRatio = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
 
 type SequenceStep = TupletRatio[];
 
+// MIDI note numbers for a major scale (C4 to C5)
+const majorScaleMidi = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76];
+
 function StepSequencer({
-  onPlayNote,
-  onStopNote,
-  notes,
-  grid,
-  audioContextRef,
+  tracks,
+  numTracks,
+  trackVolumes,
+  trackMutes,
+  onVolumeChange,
+  onMuteToggle,
+  onTrackSelect,
 }: StepSequencerProps) {
-  const [bpm, setBpm] = useState<number>(60);
+  const [bpm, setBpm] = useState<number>(() => {
+    const saved = localStorage.getItem("synth-bpm");
+    return saved ? Number(saved) : 60;
+  });
+  const [velocity, setVelocity] = useState<number>(() => {
+    const saved = localStorage.getItem("synth-velocity");
+    return saved ? Number(saved) : 80;
+  });
+  const [metronomeEnabled, setMetronomeEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem("synth-metronome");
+    return saved ? saved === "true" : true;
+  });
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [sequence, setSequence] = useState<SequenceStep[]>(() => {
-    // 8 steps, 3 tracks per step
+    // Try to load from localStorage first
+    const saved = localStorage.getItem("synth-sequence");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved sequence:", e);
+      }
+    }
+
+    // Default initialization: 8 steps, dynamic number of tracks per step
     const tupletOptions: TupletRatio[] = ["2", "3", "4", "5"];
 
     // Initialize with sparse pattern - mainly track 0 with a few notes
     return Array(8)
       .fill(null)
       .map((_, stepIndex) => {
-        const step: TupletRatio[] = ["0", "0", "0"]; // All empty by default
+        const step: TupletRatio[] = Array(numTracks).fill("0"); // All tracks start silent
 
         // Fill track 0 with some tuplets (about 4-5 out of 8 steps)
         if (
@@ -54,7 +83,7 @@ function StepSequencer({
         }
 
         // Add occasional notes in other tracks (1-2 notes total)
-        if (stepIndex === 3) {
+        if (stepIndex === 3 && numTracks > 1) {
           step[1] =
             tupletOptions[Math.floor(Math.random() * tupletOptions.length)];
         }
@@ -63,38 +92,30 @@ function StepSequencer({
       });
   });
 
-  const nextStepTimeRef = useRef<number>(0);
-  const timerIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const currentScheduleStepRef = useRef<number>(0);
-  const isPlayingRef = useRef<boolean>(false);
   const sequenceRef = useRef<SequenceStep[]>(sequence);
-  const currentBpmRef = useRef<number>(bpm); // Actual BPM used in scheduling
-  const targetBpmRef = useRef<number>(bpm); // Target BPM from UI
-  
-  // Track arpeggio position and direction for each track (3 tracks)
-  const arpeggioStateRef = useRef<{
-    index: number;
-    direction: number;
-  }[]>([{ index: 0, direction: 1 }, { index: 0, direction: 1 }, { index: 0, direction: 1 }]);
+  const partsRef = useRef<Tone.Part[]>([]);
+  const metronomeSynthRef = useRef<Tone.Synth | null>(null);
+
+  // Track arpeggio position and direction for each track (dynamic)
+  const arpeggioStateRef = useRef<
+    {
+      index: number;
+      direction: number;
+    }[]
+  >(
+    Array(numTracks)
+      .fill(null)
+      .map(() => ({ index: 0, direction: 1 })),
+  );
 
   const stepsPerBar = 8; // 8 quarter notes (2 bars of 4/4)
 
-  // Generate melodic pattern with arpeggiated notes with randomization
+  // Save BPM to localStorage\n  useEffect(() => {\n    localStorage.setItem('synth-bpm', bpm.toString());\n  }, [bpm]);\n\n  // Save sequence to localStorage\n  useEffect(() => {\n    localStorage.setItem('synth-sequence', JSON.stringify(sequence));\n  }, [sequence]);\n\n  // Generate melodic pattern with arpeggiated MIDI notes
   const getMelodyPattern = (
-    rootNote: Note,
     tupletCount: number,
     trackIndex: number,
-  ): Note[] => {
-    const pattern: Note[] = [];
-
-    // Major scale intervals (in semitones from root: 0, 2, 4, 5, 7, 9, 11, 12)
-    const majorScaleSemitones = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16];
-    const semitoneRatio = Math.pow(2, 1 / 12); // Equal temperament
-
-    // Build scale frequencies from root
-    const scaleFreqs = majorScaleSemitones.map(
-      (semitones) => rootNote.freq * Math.pow(semitoneRatio, semitones),
-    );
+  ): number[] => {
+    const pattern: number[] = [];
 
     // Get current arpeggio state for this track
     const state = arpeggioStateRef.current[trackIndex];
@@ -110,17 +131,14 @@ function StepSequencer({
 
         // Wrap around if out of bounds
         currentIndex =
-          ((currentIndex % scaleFreqs.length) + scaleFreqs.length) %
-          scaleFreqs.length;
+          ((currentIndex % majorScaleMidi.length) + majorScaleMidi.length) %
+          majorScaleMidi.length;
       } else {
         // Random jump to add variety
-        currentIndex = Math.floor(Math.random() * scaleFreqs.length);
+        currentIndex = Math.floor(Math.random() * majorScaleMidi.length);
       }
 
-      pattern.push({
-        name: `${rootNote.name}_note${i}`,
-        freq: scaleFreqs[currentIndex],
-      });
+      pattern.push(majorScaleMidi[currentIndex]);
     }
 
     // Update arpeggio state for this track
@@ -129,204 +147,222 @@ function StepSequencer({
     return pattern;
   };
 
-  // Play metronome click for timing reference
-  const playMetronomeClick = (time: number, isDownbeat: boolean) => {
-    const ctx = audioContextRef.current;
-    if (!ctx) return;
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    // Higher pitch for downbeat (step 0, 4), lower for others
-    osc.frequency.value = isDownbeat ? 1200 : 800;
-    osc.type = "sine";
-
-    // Louder, short click
-    gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(isDownbeat ? 0.15 : 0.1, time + 0.001);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
-
-    osc.start(time);
-    osc.stop(time + 0.03);
-  };
-
-  const scheduleNote = (time: number, step: number) => {
-    const stepData = sequenceRef.current[step];
-    const ctx = audioContextRef.current;
-
-    if (!ctx) {
-      console.error("[Sequencer] AudioContext is null");
-      return;
+  // Initialize metronome synth
+  useEffect(() => {
+    if (!metronomeSynthRef.current) {
+      metronomeSynthRef.current = new Tone.Synth({
+        oscillator: { type: "sine" },
+        envelope: {
+          attack: 0.001,
+          decay: 0.029,
+          sustain: 0,
+          release: 0.029,
+        },
+      }).toDestination();
+      metronomeSynthRef.current.volume.value = -12; // Quieter metronome
     }
 
-    // Smooth BPM interpolation at step boundaries
-    const bpmDiff = targetBpmRef.current - currentBpmRef.current;
-    if (Math.abs(bpmDiff) > 0.1) {
-      // Interpolate by 10% of the difference per step for smooth transition
-      currentBpmRef.current += bpmDiff * 0.1;
-    } else {
-      currentBpmRef.current = targetBpmRef.current;
-    }
+    return () => {
+      if (metronomeSynthRef.current) {
+        metronomeSynthRef.current.dispose();
+        metronomeSynthRef.current = null;
+      }
+    };
+  }, []);
 
-    const delay = (time - ctx.currentTime) * 1000;
-    const secondsPerBeat = 60.0 / currentBpmRef.current;
+  // Create Tone.js Parts from sequence
+  const createParts = () => {
+    // Clean up existing parts
+    partsRef.current.forEach((part) => part.dispose());
+    partsRef.current = [];
 
-    console.log(
-      `[Sequencer] Scheduling step ${step + 1}, delay: ${delay.toFixed(2)}ms, BPM: ${currentBpmRef.current.toFixed(1)}`,
-    );
+    // Check if all tracks have synths initialized
+    const allSynthsReady = tracks.every((track) => track.synth !== null);
+    if (!allSynthsReady) return;
 
-    if (delay < 0) {
-      console.warn(
-        `[Sequencer] Negative delay detected: ${delay}ms - skipping step ${step + 1}`,
-      );
-      return;
-    }
+    const secondsPerBeat = 60.0 / bpm;
 
-    // Schedule metronome clicks: 2 subdivisions per step (half steps)
-    const subdivisions = 2;
-    const subdivisionInterval = secondsPerBeat / subdivisions;
-    for (let i = 0; i < subdivisions; i++) {
-      const clickTime = time + i * subdivisionInterval;
-      const isDownbeat = step % 4 === 0 && i === 0; // First subdivision of steps 0, 4
-      playMetronomeClick(clickTime, isDownbeat);
-    }
+    // Process each step
+    sequenceRef.current.forEach((stepData, stepIndex) => {
+      const stepTime = stepIndex * secondsPerBeat;
 
-    let notesScheduled = 0;
+      // Add metronome clicks (2 subdivisions per step) - only if enabled
+      if (metronomeEnabled) {
+        const subdivisions = 2;
+        const subdivisionInterval = secondsPerBeat / subdivisions;
+        for (let i = 0; i < subdivisions; i++) {
+          const clickTime = stepTime + i * subdivisionInterval;
+          const isDownbeat = stepIndex % 4 === 0 && i === 0;
+          const clickNote = isDownbeat ? "F6" : "C6"; // Higher pitch for downbeat
 
-    // Process each track in the step
-    stepData.forEach((tupletRatio, trackIndex) => {
-      const n = Number(tupletRatio);
-      if (n === 0) return; // Skip empty tracks
+          const clickPart = new Tone.Part(
+            (time) => {
+              if (metronomeSynthRef.current) {
+                metronomeSynthRef.current.triggerAttackRelease(
+                  clickNote,
+                  "32n",
+                  time,
+                  0.5,
+                );
+              }
+            },
+            [[clickTime, null]],
+          );
+          clickPart.loop = true;
+          clickPart.loopEnd = stepsPerBar * secondsPerBeat;
+          partsRef.current.push(clickPart);
+        }
+      }
 
-      // Pick a random root note from the available notes
-      const rootNote = notes[Math.floor(Math.random() * notes.length)];
-      if (!rootNote) return;
+      // Process each track in the step
+      stepData.forEach((tupletRatio, trackIndex) => {
+        const n = Number(tupletRatio);
+        if (n === 0) return; // Skip silent steps
 
-      const stepDuration = secondsPerBeat; // Single step = 1 beat (fixed)
-      const noteInterval = stepDuration / n; // Divide step evenly by number of notes
+        const noteInterval = secondsPerBeat / n;
+        const melodyPattern = getMelodyPattern(n, trackIndex);
 
-      // Generate melodic pattern (maintaining arpeggio state per track)
-      const melodyPattern = getMelodyPattern(rootNote, n, trackIndex);
+        // Use the corresponding synth for this track
+        const synthForTrack = tracks[trackIndex]?.synth;
+        if (!synthForTrack) return; // Skip if synth not initialized
+        const normalizedVelocity = velocity / 127;
 
-      // Schedule each note in the tuplet sequentially
-      melodyPattern.forEach((note, index) => {
-        const noteDelay = delay + noteInterval * index * 1000;
+        // Schedule each note in the tuplet
+        melodyPattern.forEach((midiNote, noteIndex) => {
+          const noteTime = stepTime + noteInterval * noteIndex;
+          const baseDuration = 0.12; // 120ms base duration
+          const randomFactor = 0.8 + Math.random() * 0.4;
+          const actualDuration = baseDuration * randomFactor;
 
-        // Staccato duration: short, fixed length with randomization
-        const baseDuration = 120; // 120ms base duration (short and punchy)
-
-        // Add human randomization: ±20% variation
-        const randomFactor = 0.8 + Math.random() * 0.4; // 0.8 to 1.2
-        const actualDuration = baseDuration * randomFactor;
-
-        notesScheduled++;
-
-        console.log(
-          `[Sequencer] Scheduling note ${index + 1}/${n}: ${note.name} at ${note.freq.toFixed(1)}Hz, delay: ${noteDelay.toFixed(2)}ms, duration: ${actualDuration.toFixed(0)}ms`,
-        );
-
-        // Schedule note start with sawtooth for synthy sound
-        setTimeout(() => {
-          console.log(`[Sequencer] Playing note ${note.name}`);
-          onPlayNote(note.name, note.freq, "sawtooth");
-        }, noteDelay);
-
-        // Schedule note stop
-        setTimeout(() => {
-          console.log(`[Sequencer] Stopping note ${note.name}`);
-          onStopNote(note.name);
-        }, noteDelay + actualDuration);
+          // Create individual parts per track so we can use different synths
+          const notePart = new Tone.Part(
+            (time) => {
+              const noteName = Tone.Frequency(midiNote, "midi").toNote();
+              synthForTrack.triggerAttackRelease(
+                noteName,
+                actualDuration,
+                time,
+                normalizedVelocity,
+              );
+            },
+            [[noteTime, null]],
+          );
+          notePart.loop = true;
+          notePart.loopEnd = stepsPerBar * secondsPerBeat;
+          partsRef.current.push(notePart);
+        });
       });
     });
 
-    if (notesScheduled === 0) {
-      console.log(`[Sequencer] No notes scheduled for step ${step + 1}`);
-    }
-
     // Update visual feedback
-    setTimeout(() => {
-      setCurrentStep(step);
-    }, delay);
-  };
-
-  const scheduler = () => {
-    if (!isPlayingRef.current) {
-      console.log("[Sequencer] Scheduler stopped - not playing");
-      return;
-    }
-    if (!audioContextRef.current) {
-      console.log("[Sequencer] Scheduler stopped - context missing");
-      return;
-    }
-
-    const secondsPerBeat = 60.0 / currentBpmRef.current;
-    const lookahead = 0.1; // Schedule 100ms ahead
-    const scheduleAheadTime = 0.2;
-
-    let stepsScheduled = 0;
-    while (
-      nextStepTimeRef.current <
-      audioContextRef.current.currentTime + scheduleAheadTime
-    ) {
-      scheduleNote(nextStepTimeRef.current, currentScheduleStepRef.current);
-      stepsScheduled++;
-
-      nextStepTimeRef.current += secondsPerBeat;
-      currentScheduleStepRef.current =
-        (currentScheduleStepRef.current + 1) % stepsPerBar;
-    }
-
-    if (stepsScheduled > 0) {
-      console.log(`[Sequencer] Scheduled ${stepsScheduled} step(s) this cycle`);
-    }
-
-    timerIdRef.current = setTimeout(scheduler, lookahead * 1000);
-  };
-
-  const start = () => {
-    console.log("[Sequencer] Starting...");
-
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
-      console.log("[Sequencer] Created new AudioContext");
-    } else {
-      console.log("[Sequencer] Using shared AudioContext");
-    }
-
-    console.log(
-      `[Sequencer] AudioContext state: ${audioContextRef.current.state}`,
+    const visualPart = new Tone.Part(
+      (time, step) => {
+        Tone.Draw.schedule(() => {
+          setCurrentStep(step);
+        }, time);
+      },
+      Array.from({ length: stepsPerBar }, (_, i) => [i * secondsPerBeat, i]),
     );
-    console.log(`[Sequencer] BPM: ${bpm}, Steps: ${stepsPerBar}`);
-    console.log("[Sequencer] Default sequence:", sequence);
 
-    isPlayingRef.current = true;
+    visualPart.loop = true;
+    visualPart.loopEnd = stepsPerBar * secondsPerBeat;
+    partsRef.current.push(visualPart);
+  };
+
+  const start = async () => {
+    const allSynthsReady = tracks.every((track) => track.synth !== null);
+    if (!allSynthsReady) {
+      console.error("[Sequencer] Synths not initialized");
+      return;
+    }
+
+    // Ensure Tone.js is started (required after user interaction)
+    await Tone.start();
+
+    // Set BPM
+    Tone.Transport.bpm.value = bpm;
+
+    // Create and start parts
+    createParts();
+    partsRef.current.forEach((part) => part.start(0));
+
+    // Start transport
+    Tone.Transport.start();
     setIsPlaying(true);
-    currentScheduleStepRef.current = 0;
-    setCurrentStep(0);
-    nextStepTimeRef.current = audioContextRef.current.currentTime;
-
-    console.log(`[Sequencer] Start time: ${nextStepTimeRef.current}`);
-    scheduler();
   };
 
   const stop = () => {
-    console.log("[Sequencer] Stopping...");
-    isPlayingRef.current = false;
+    // Stop and dispose parts first (before stopping transport)
+    partsRef.current.forEach((part) => {
+      try {
+        part.stop(0); // Stop immediately at time 0
+      } catch (e) {
+        // Ignore timing errors when stopping
+        console.warn("Part stop error (ignored):", e);
+      }
+      part.dispose();
+    });
+    partsRef.current = [];
+
+    // Then stop transport
+    Tone.Transport.stop();
+    Tone.Transport.position = 0;
+
     setIsPlaying(false);
     setCurrentStep(0);
-    if (timerIdRef.current) {
-      clearTimeout(timerIdRef.current);
-      timerIdRef.current = null;
-    }
   };
 
+  // Update BPM when changed
+  useEffect(() => {
+    if (isPlaying) {
+      Tone.Transport.bpm.value = bpm;
+    }
+  }, [bpm, isPlaying]);
+
+  // Recreate parts when sequence changes
+  useEffect(() => {
+    sequenceRef.current = sequence;
+    if (isPlaying) {
+      // Update parts without restarting - just recreate them
+      // Clean up old parts
+      partsRef.current.forEach((part) => {
+        if (part.state === "started") {
+          part.stop(0);
+        }
+        part.dispose();
+      });
+      partsRef.current = [];
+
+      // Create new parts with updated sequence
+      createParts();
+
+      // Start all new parts
+      partsRef.current.forEach((part) => {
+        part.start(0);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sequence]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timerIdRef.current) {
-        clearTimeout(timerIdRef.current);
+      // Clean up parts on unmount
+      partsRef.current.forEach((part) => {
+        try {
+          if (part.state === "started") {
+            part.stop(0);
+          }
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        part.dispose();
+      });
+      partsRef.current = [];
+
+      // Stop transport if it's running
+      if (Tone.Transport.state === "started") {
+        Tone.Transport.stop();
       }
     };
   }, []);
@@ -352,20 +388,30 @@ function StepSequencer({
       >
         <button
           onClick={isPlaying ? stop : start}
+          disabled={!tracks.every((t) => t.synth !== null)}
           style={{
             padding: "10px 20px",
             fontSize: "16px",
-            cursor: "pointer",
+            cursor: tracks.every((t) => t.synth !== null)
+              ? "pointer"
+              : "not-allowed",
             backgroundColor: isPlaying ? "#f44336" : "#4CAF50",
             color: "white",
             border: "none",
             borderRadius: "4px",
+            opacity: tracks.every((t) => t.synth !== null) ? 1 : 0.5,
           }}
         >
-          {isPlaying ? "Stop" : "Start"}
+          {isPlaying ? "⏹ Stop" : "▶ Start"}
         </button>
 
-        <label>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
           BPM:
           <input
             type="number"
@@ -373,27 +419,60 @@ function StepSequencer({
             onChange={(e) => {
               const newBpm = Number(e.target.value);
               setBpm(newBpm);
-              targetBpmRef.current = newBpm;
-              // Instantly update BPM when not playing
-              if (!isPlaying) {
-                currentBpmRef.current = newBpm;
-              }
             }}
             min="20"
             max="240"
-            style={{ marginLeft: "10px", padding: "5px", width: "60px" }}
+            style={{ padding: "5px", width: "60px" }}
           />
         </label>
+
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          Velocity:
+          <input
+            type="range"
+            min="1"
+            max="127"
+            value={velocity}
+            onChange={(e) => setVelocity(Number(e.target.value))}
+            style={{ width: "100px" }}
+          />
+          <span style={{ minWidth: "30px", fontSize: "14px" }}>
+            {velocity}
+          </span>
+        </label>
+
+        <button
+          onClick={() => setMetronomeEnabled(!metronomeEnabled)}
+          style={{
+            padding: "10px 20px",
+            fontSize: "16px",
+            cursor: "pointer",
+            backgroundColor: metronomeEnabled ? "#4CAF50" : "#9E9E9E",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+          }}
+        >
+          {metronomeEnabled ? "🔔" : "🔕"} Metronome
+        </button>
       </div>
 
       {/* 3x3 Grid Visualizer */}
-      <GridVisualizer grid={grid} currentStep={currentStep} />
+      <GridVisualizer currentStep={currentStep} isPlaying={isPlaying} />
 
       <div style={{ overflowX: "auto" }}>
-        <table style={{ borderCollapse: "collapse" }}>
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
           <thead>
             <tr>
-              <th style={{ padding: "8px", border: "1px solid #ddd" }}>Note</th>
+              <th style={{ padding: "8px", border: "1px solid #ddd" }}>
+                Track
+              </th>
               {Array(stepsPerBar)
                 .fill(null)
                 .map((_, i) => (
@@ -413,16 +492,102 @@ function StepSequencer({
             </tr>
           </thead>
           <tbody>
-            {[0, 1, 2].map((trackIndex) => (
+            {Array.from({ length: numTracks }, (_, trackIndex) => (
               <tr key={trackIndex}>
                 <td
                   style={{
                     padding: "8px",
                     border: "1px solid #ddd",
                     fontWeight: "bold",
+                    backgroundColor:
+                      trackIndex % 2 === 0 ? "#fafafa" : "#ffffff",
                   }}
                 >
-                  Track {trackIndex + 1}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                      minWidth: "120px",
+                    }}
+                  >
+                    <div style={{ fontWeight: "bold", fontSize: "14px" }}>
+                      Track {trackIndex + 1}
+                    </div>
+
+                    {/* Volume Slider */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <span style={{ fontSize: "10px", minWidth: "25px" }}>
+                        Vol:
+                      </span>
+                      <input
+                        type="range"
+                        min="-40"
+                        max="10"
+                        step="1"
+                        value={trackVolumes[trackIndex]}
+                        onChange={(e) =>
+                          onVolumeChange(trackIndex, Number(e.target.value))
+                        }
+                        style={{ width: "70px" }}
+                        title={`${trackVolumes[trackIndex]} dB`}
+                      />
+                      <span style={{ fontSize: "9px", minWidth: "30px" }}>
+                        {trackVolumes[trackIndex]}dB
+                      </span>
+                    </div>
+
+                    {/* Mute Button and Edit Button */}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "4px",
+                      }}
+                    >
+                      <button
+                        onClick={() => onMuteToggle(trackIndex)}
+                        style={{
+                          padding: "4px 8px",
+                          fontSize: "10px",
+                          cursor: "pointer",
+                          backgroundColor: trackMutes[trackIndex]
+                            ? "#f44336"
+                            : "#4CAF50",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "3px",
+                          flex: 1,
+                        }}
+                        title={trackMutes[trackIndex] ? "Unmute" : "Mute"}
+                      >
+                        {trackMutes[trackIndex] ? "🔇" : "🔊"}
+                      </button>
+                      {onTrackSelect && (
+                        <button
+                          onClick={() => onTrackSelect(trackIndex + 1)}
+                          style={{
+                            padding: "4px 8px",
+                            fontSize: "10px",
+                            cursor: "pointer",
+                            backgroundColor: "#673AB7",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "3px",
+                            flex: 1,
+                          }}
+                          title="Edit synth settings"
+                        >
+                          🎛️
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </td>
                 {Array(stepsPerBar)
                   .fill(null)
@@ -439,7 +604,9 @@ function StepSequencer({
                           backgroundColor:
                             currentStep === step && isPlaying
                               ? "#fff9c4"
-                              : "white",
+                              : trackIndex % 2 === 0
+                                ? "#fafafa"
+                                : "white",
                         }}
                       >
                         {/* Tuplet count dropdown */}
@@ -450,7 +617,6 @@ function StepSequencer({
                               const newSequence = [...prev];
                               newSequence[step][trackIndex] = e.target
                                 .value as TupletRatio;
-                              sequenceRef.current = newSequence;
                               return newSequence;
                             });
                           }}
@@ -468,6 +634,7 @@ function StepSequencer({
                           <option value="5">×5</option>
                           <option value="6">×6</option>
                           <option value="7">×7</option>
+                          <option value="8">×8</option>
                         </select>
                       </td>
                     );

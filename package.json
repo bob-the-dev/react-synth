@@ -21,9 +21,11 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@tonejs/midi": "^2.0.28",
     "@vitejs/plugin-react": "^5.1.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "tone": "^15.1.22",
     "vite": "^7.3.1"
   },
   "devDependencies": {

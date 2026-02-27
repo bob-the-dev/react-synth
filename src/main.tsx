@@ -1,210 +1,402 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import * as Tone from "tone";
 import StepSequencer from "./components/StepSequencer";
+import SynthControls from "./components/SynthControls";
+import { getPresetByName } from "./presets/instrumentPresets";
 
-interface Note {
-  name: string;
-  freq: number;
+// Configure number of tracks (change this to add/remove tracks)
+const NUM_TRACKS = 4;
+
+// Track configurations - each track has its own unique settings
+const TRACK_CONFIGS = [
+  {
+    // Track 1 - Bass
+    oscillatorType: "sine" as const,
+    envelope: { attack: 0.01, decay: 0.3, sustain: 0.7, release: 0.8 },
+  },
+  {
+    // Track 2 - Piano (Default)
+    oscillatorType: "triangle" as const,
+    envelope: { attack: 0.002, decay: 0.15, sustain: 0.2, release: 0.8 },
+  },
+  {
+    // Track 3 - Hi-hat
+    oscillatorType: "square" as const,
+    envelope: { attack: 0.001, decay: 0.05, sustain: 0.0, release: 0.05 },
+  },
+  {
+    // Track 4 - Toms
+    oscillatorType: "sine" as const,
+    envelope: { attack: 0.005, decay: 0.15, sustain: 0.1, release: 0.2 },
+  },
+];
+
+interface Track {
+  synth: Tone.PolySynth | null;
+  reverb: Tone.JCReverb | null;
+  lfo: Tone.LFO | null;
+  delay: Tone.FeedbackDelay | null;
+  filter: Tone.Filter | null;
+  distortion: Tone.Distortion | null;
 }
 
-interface ActiveOscillator {
-  oscillators: OscillatorNode[];
-  gains: GainNode[];
-  filter: BiquadFilterNode;
+interface TrackSettings {
+  // Oscillator 1
+  osc1Type: "sine" | "square" | "sawtooth" | "triangle";
+  osc1Octave: number;
+  osc1Semitone: number;
+  osc1Detune: number;
+  osc1Shape: number;
+
+  // Oscillator 2
+  osc2Type: "sine" | "square" | "sawtooth" | "triangle";
+  osc2Octave: number;
+  osc2Semitone: number;
+  osc2Detune: number;
+  osc2Shape: number;
+
+  // Oscillator Mix
+  oscMix: number;
+  ringMod: number;
+
+  // Amp Envelope
+  attack: number;
+  decay: number;
+  sustain: number;
+  release: number;
+
+  // Amp
+  volume: number;
+  drive: number;
+
+  // Filter
+  filterType: "lowpass" | "highpass" | "bandpass" | "notch";
+  filterFreq: number;
+  filterQ: number;
+  filterEnvAmount: number;
+  filterKeyTrack: number;
+
+  // Filter Envelope
+  filterAttack: number;
+  filterDecay: number;
+  filterSustain: number;
+  filterRelease: number;
+  filterBaseFreq: number;
+  filterOctaves: number;
+
+  // Portamento
+  portamento: number;
+  portamentoMode: "always" | "legato" | "off";
+
+  // LFO
+  lfoRate: number;
+  lfoDepth: number;
+  lfoType: "sine" | "square" | "sawtooth" | "triangle";
+  lfoOsc1Amount: number;
+  lfoOsc2Amount: number;
+  lfoFilterAmount: number;
+  lfoAmpAmount: number;
+
+  // Delay
+  delayTime: number;
+  delayFeedback: number;
+  delayWet: number;
+
+  // Reverb
+  reverbDecay: number;
+  reverbWet: number;
+  reverbSize: number;
+  reverbStereo: number;
+  reverbDamping: number;
 }
 
 function SynthKeyboard() {
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const activeOscillators = useRef<Record<string, ActiveOscillator>>({});
+  // Dynamic arrays for synths and reverbs
+  const tracksRef = useRef<Track[]>(
+    Array(NUM_TRACKS)
+      .fill(null)
+      .map(() => ({
+        synth: null,
+        reverb: null,
+        lfo: null,
+        delay: null,
+        filter: null,
+        distortion: null,
+      })),
+  );
 
-  useEffect(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
+  // Store settings per track to prevent sharing
+  // Initialize with preset instruments or load from localStorage
+  const [trackSettings, setTrackSettings] = useState<TrackSettings[]>(() => {
+    const saved = localStorage.getItem("synth-track-settings");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved track settings:", e);
+      }
     }
+    return [
+      // Track 1 - Bass
+      getPresetByName("Acoustic Bass")!.settings,
+      // Track 2 - Piano
+      getPresetByName("Acoustic Grand Piano")!.settings,
+      // Track 3 - Hi-hat
+      getPresetByName("Hi-Hat")!.settings,
+      // Track 4 - Toms
+      getPresetByName("Toms")!.settings,
+    ];
+  });
+
+  // Track volume and mute controls (separate from synth settings)
+  const [trackVolumes, setTrackVolumes] = useState<number[]>(() => {
+    const saved = localStorage.getItem("synth-track-volumes");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved track volumes:", e);
+      }
+    }
+    return Array(NUM_TRACKS).fill(0); // 0 dB default
+  });
+
+  const [trackMutes, setTrackMutes] = useState<boolean[]>(() => {
+    const saved = localStorage.getItem("synth-track-mutes");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved track mutes:", e);
+      }
+    }
+    return Array(NUM_TRACKS).fill(false);
+  });
+
+  const [error, setError] = useState<string | null>(null);
+  const [isSynthControlsOpen, setIsSynthControlsOpen] =
+    useState<boolean>(false);
+  const [activeTrack, setActiveTrack] = useState<number>(1); // Which track's synth to configure
+
+  // Initialize all tracks dynamically
+  useEffect(() => {
+    // Check if already initialized
+    if (tracksRef.current[0].synth) return;
+
+    // Create synth and effects for each track
+    for (let i = 0; i < NUM_TRACKS; i++) {
+      const config = TRACK_CONFIGS[i] || TRACK_CONFIGS[0]; // Fallback to first config
+      const settings = trackSettings[i]; // Get track-specific settings
+
+      // Calculate detune from octave and semitone
+      const osc1DetuneTotal =
+        settings.osc1Octave * 1200 +
+        settings.osc1Semitone * 100 +
+        settings.osc1Detune;
+
+      // Create filter for this track (independent instance)
+      const filter = new Tone.Filter({
+        type: settings.filterType,
+        frequency: settings.filterFreq,
+        Q: settings.filterQ,
+      });
+
+      // Create distortion for this track
+      const distortion = new Tone.Distortion({
+        distortion: settings.drive,
+        wet: settings.drive > 0 ? 1 : 0, // Full wet when drive enabled
+      });
+
+      // Create delay for this track
+      const delay = new Tone.FeedbackDelay({
+        delayTime: settings.delayTime,
+        feedback: settings.delayFeedback,
+        wet: settings.delayWet,
+      });
+
+      // Create reverb for this track
+      const reverb = new Tone.JCReverb({
+        roomSize: settings.reverbSize,
+        wet: settings.reverbWet,
+      });
+
+      // Chain: synth -> distortion -> filter -> delay -> reverb -> destination
+      distortion.connect(filter);
+      filter.connect(delay);
+      delay.connect(reverb);
+      reverb.toDestination();
+
+      // Create synth with track-specific config
+      // Note: Full dual oscillator support requires custom voice implementation
+      // Currently using osc1 settings as primary oscillator
+      const synth = new Tone.PolySynth(Tone.MonoSynth, {
+        oscillator: {
+          type: settings.osc1Type,
+        },
+        envelope: config.envelope,
+        volume: settings.volume,
+        portamento: settings.portamento,
+        detune: osc1DetuneTotal,
+        filterEnvelope: {
+          attack: settings.filterAttack,
+          decay: settings.filterDecay,
+          sustain: settings.filterSustain,
+          release: settings.filterRelease,
+          baseFrequency: settings.filterBaseFreq,
+          octaves: settings.filterOctaves,
+        },
+      }).connect(distortion);
+
+      // Create LFO for this track (starts stopped, will be controlled by SynthControls)
+      const lfo = new Tone.LFO({
+        frequency: settings.lfoRate,
+        min: 0,
+        max: 0, // Depth controlled separately
+        type: settings.lfoType,
+      });
+
+      tracksRef.current[i] = { synth, reverb, lfo, delay, filter, distortion };
+    }
+
+    return () => {
+      // Clean up all tracks
+      tracksRef.current.forEach((track) => {
+        if (track.synth) {
+          track.synth.dispose();
+        }
+        if (track.reverb) {
+          track.reverb.dispose();
+        }
+        if (track.lfo) {
+          track.lfo.dispose();
+        }
+        if (track.delay) {
+          track.delay.dispose();
+        }
+        if (track.filter) {
+          track.filter.dispose();
+        }
+        if (track.distortion) {
+          track.distortion.dispose();
+        }
+      });
+      // Reset refs
+      tracksRef.current = Array(NUM_TRACKS)
+        .fill(null)
+        .map(() => ({
+          synth: null,
+          reverb: null,
+          lfo: null,
+          delay: null,
+          filter: null,
+          distortion: null,
+        }));
+    };
   }, []);
 
-  const startNote = (
-    note: string,
-    frequency: number,
-    _waveType: OscillatorType = "sine",
-  ) => {
-    if (activeOscillators.current[note]) return; // Already playing
-
-    if (!audioContextRef.current) {
-      console.error("[Synth] AudioContext not initialized");
-      return;
-    }
-
-    const ctx = audioContextRef.current;
-    const now = ctx.currentTime;
-
-    // Create multiple oscillators for harmonics (piano has rich harmonics)
-    const fundamental = ctx.createOscillator();
-    const harmonic2 = ctx.createOscillator(); // Octave
-    const harmonic3 = ctx.createOscillator(); // Fifth above octave
-    const harmonic4 = ctx.createOscillator(); // Two octaves
-    const harmonic5 = ctx.createOscillator(); // Major third above two octaves
-
-    // Create individual gain nodes for each harmonic
-    const gain1 = ctx.createGain();
-    const gain2 = ctx.createGain();
-    const gain3 = ctx.createGain();
-    const gain4 = ctx.createGain();
-    const gain5 = ctx.createGain();
-
-    // Create a master gain for overall envelope
-    const masterGain = ctx.createGain();
-
-    // Create a low-pass filter for warmth (simulates piano body resonance)
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 3000 + frequency * 0.5; // Higher notes = brighter
-    filter.Q.value = 1;
-
-    // Set harmonic frequencies (based on piano harmonic series)
-    fundamental.frequency.value = frequency;
-    harmonic2.frequency.value = frequency * 2; // Octave
-    harmonic3.frequency.value = frequency * 3; // Fifth above octave
-    harmonic4.frequency.value = frequency * 4; // Two octaves
-    harmonic5.frequency.value = frequency * 5; // Major third
-
-    // Use triangle wave for fundamental (rounder than sine, less harsh than square)
-    fundamental.type = "triangle";
-    harmonic2.type = "sine";
-    harmonic3.type = "sine";
-    harmonic4.type = "sine";
-    harmonic5.type = "sine";
-
-    // Set harmonic amplitudes (decreasing with higher harmonics)
-    // Piano has strong fundamental, then decreasing harmonics
-    gain1.gain.value = 0.4; // Fundamental (strong)
-    gain2.gain.value = 0.25; // Octave (moderate)
-    gain3.gain.value = 0.15; // Fifth (subtle)
-    gain4.gain.value = 0.08; // Two octaves (very subtle)
-    gain5.gain.value = 0.04; // High harmonic (barely audible)
-
-    // Connect harmonics through their gains
-    fundamental.connect(gain1);
-    harmonic2.connect(gain2);
-    harmonic3.connect(gain3);
-    harmonic4.connect(gain4);
-    harmonic5.connect(gain5);
-
-    // All gains connect to filter
-    gain1.connect(filter);
-    gain2.connect(filter);
-    gain3.connect(filter);
-    gain4.connect(filter);
-    gain5.connect(filter);
-
-    // Filter connects to master gain
-    filter.connect(masterGain);
-    masterGain.connect(ctx.destination);
-
-    // Piano-style ADSR envelope
-    // Attack: very fast (piano hammer strike)
-    // Decay: quick drop to sustain
-    // Sustain: moderate level
-    // Release: long, natural fade
-
-    masterGain.gain.setValueAtTime(0, now);
-    masterGain.gain.linearRampToValueAtTime(0.8, now + 0.003); // 3ms attack (hammer strike)
-    masterGain.gain.exponentialRampToValueAtTime(0.4, now + 0.05); // 50ms decay
-    masterGain.gain.exponentialRampToValueAtTime(0.3, now + 0.2); // Sustain level
-
-    // Add brightness sweep (filter envelope) - piano starts bright then mellows
-    filter.frequency.setValueAtTime(3000 + frequency * 0.8, now);
-    filter.frequency.exponentialRampToValueAtTime(
-      2000 + frequency * 0.3,
-      now + 0.5,
-    );
-
-    // Start all oscillators
-    const oscillators = [
-      fundamental,
-      harmonic2,
-      harmonic3,
-      harmonic4,
-      harmonic5,
-    ];
-    oscillators.forEach((osc) => osc.start(now));
-
-    activeOscillators.current[note] = {
-      oscillators,
-      gains: [gain1, gain2, gain3, gain4, gain5, masterGain],
-      filter,
-    };
-  };
-
-  const stopNote = (note: string) => {
-    const nodes = activeOscillators.current[note];
-    if (!nodes) return;
-
-    const ctx = audioContextRef.current;
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const masterGain = nodes.gains[5]; // Last gain is master
-
-    // Piano release: exponential fade over ~500ms
-    masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-    masterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-
-    // Also darken the filter during release
-    nodes.filter.frequency.cancelScheduledValues(now);
-    nodes.filter.frequency.setValueAtTime(nodes.filter.frequency.value, now);
-    nodes.filter.frequency.exponentialRampToValueAtTime(200, now + 0.5);
-
-    // Stop all oscillators after release
-    nodes.oscillators.forEach((osc) => {
-      try {
-        osc.stop(now + 0.5);
-      } catch (e) {
-        // Oscillator might already be stopped
+  // Apply track volume and mute settings
+  useEffect(() => {
+    tracksRef.current.forEach((track, i) => {
+      if (track.synth) {
+        // Apply volume (convert to decibels)
+        track.synth.volume.value = trackMutes[i] ? -Infinity : trackVolumes[i];
       }
     });
+  }, [trackVolumes, trackMutes]);
 
-    // Clean up
-    setTimeout(() => {
-      delete activeOscillators.current[note];
-    }, 600);
-  };
+  // Save track settings to localStorage
+  useEffect(() => {
+    localStorage.setItem("synth-track-settings", JSON.stringify(trackSettings));
+  }, [trackSettings]);
 
-  // 3x3 grid layout with center empty (one octave lower)
-  const grid: (Note | null)[][] = [
-    [
-      { name: "1", freq: 130.81 },
-      { name: "2", freq: 146.83 },
-      { name: "3", freq: 164.81 },
-    ],
-    [
-      { name: "4", freq: 174.61 },
-      null, // empty center
-      { name: "5", freq: 196.0 },
-    ],
-    [
-      { name: "6", freq: 220.0 },
-      { name: "7", freq: 246.94 },
-      { name: "8", freq: 261.63 },
-    ],
-  ];
+  // Save track volumes to localStorage
+  useEffect(() => {
+    localStorage.setItem("synth-track-volumes", JSON.stringify(trackVolumes));
+  }, [trackVolumes]);
 
-  // Flat list of all notes for the sequencer
-  const allNotes: Note[] = grid
-    .flat()
-    .filter((note): note is Note => note !== null);
+  // Save track mutes to localStorage
+  useEffect(() => {
+    localStorage.setItem("synth-track-mutes", JSON.stringify(trackMutes));
+  }, [trackMutes]);
+
+
+
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
-      <h1>Synth Sequencer</h1>
+    <div
+      style={{
+        padding: "20px",
+        fontFamily: "Arial, sans-serif",
+        maxWidth: "1200px",
+        margin: "0 auto",
+      }}
+    >
+      <h1>🎹 Step Sequencer Synthesizer</h1>
+      <p style={{ color: "#666", marginBottom: "20px" }}>
+        Create musical sequences with the step sequencer.
+      </p>
 
+      {error && (
+        <div
+          style={{
+            padding: "10px",
+            marginBottom: "20px",
+            backgroundColor: "#ffebee",
+            border: "1px solid #f44336",
+            borderRadius: "4px",
+            color: "#c62828",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Step Sequencer */}
       <StepSequencer
-        onPlayNote={startNote}
-        onStopNote={stopNote}
-        notes={allNotes}
-        grid={grid}
-        audioContextRef={audioContextRef}
+        tracks={tracksRef.current}
+        numTracks={NUM_TRACKS}
+        trackVolumes={trackVolumes}
+        trackMutes={trackMutes}
+        onVolumeChange={(trackIndex, volume) => {
+          setTrackVolumes((prev) => {
+            const updated = [...prev];
+            updated[trackIndex] = volume;
+            return updated;
+          });
+        }}
+        onMuteToggle={(trackIndex) => {
+          setTrackMutes((prev) => {
+            const updated = [...prev];
+            updated[trackIndex] = !updated[trackIndex];
+            return updated;
+          });
+        }}
+        onTrackSelect={(track) => {
+          setActiveTrack(track);
+          setIsSynthControlsOpen(true);
+        }}
+      />
+
+      {/* Synth Controls Modal */}
+      <SynthControls
+        synth={tracksRef.current[activeTrack - 1]?.synth || null}
+        reverb={tracksRef.current[activeTrack - 1]?.reverb || null}
+        lfo={tracksRef.current[activeTrack - 1]?.lfo || null}
+        delay={tracksRef.current[activeTrack - 1]?.delay || null}
+        filter={tracksRef.current[activeTrack - 1]?.filter || null}
+        distortion={tracksRef.current[activeTrack - 1]?.distortion || null}
+        trackNumber={activeTrack}
+        isOpen={isSynthControlsOpen}
+        onClose={() => setIsSynthControlsOpen(false)}
+        initialSettings={trackSettings[activeTrack - 1]}
+        onSettingsChange={(newSettings) => {
+          setTrackSettings((prev) => {
+            const updated = [...prev];
+            updated[activeTrack - 1] = newSettings;
+            return updated;
+          });
+        }}
       />
     </div>
   );
