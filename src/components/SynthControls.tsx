@@ -174,7 +174,15 @@ function SynthControls({
       // Ensure Tone.js is started
       await Tone.start();
 
-      // Play a middle C note
+      // Release any stuck notes first
+      synth.releaseAll();
+
+      // Check voice availability
+      console.log(
+        `[SynthControls] Playing preview. Synth polyphony: ${synth.maxPolyphony}, Active voices: ${synth.activeVoices}`,
+      );
+
+      // Play a middle C note with a short duration
       synth.triggerAttackRelease("C4", "8n");
     } catch (error) {
       console.error("Error playing preview:", error);
@@ -383,6 +391,110 @@ function SynthControls({
 
   if (!isOpen) return null;
 
+  // Helper component for control sections
+  const ControlSection = ({
+    title,
+    children,
+  }: {
+    title: string;
+    children: React.ReactNode;
+  }) => (
+    <div
+      style={{
+        marginBottom: "20px",
+        padding: "15px",
+        background: "linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)",
+        borderRadius: "8px",
+        border: "1px solid #ddd",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+      }}
+    >
+      <h3
+        style={{
+          marginTop: 0,
+          marginBottom: "15px",
+          fontSize: "14px",
+          fontWeight: "bold",
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+          color: "#333",
+          borderBottom: "2px solid #999",
+          paddingBottom: "8px",
+        }}
+      >
+        {title}
+      </h3>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: "15px",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+
+  const ControlInput = ({
+    label,
+    value,
+    onChange,
+    min,
+    max,
+    step,
+    type = "range",
+    options,
+    displayValue,
+  }: {
+    label: string;
+    value: any;
+    onChange: (val: any) => void;
+    min?: string | number;
+    max?: string | number;
+    step?: string | number;
+    type?: "range" | "select";
+    options?: { value: string; label: string }[];
+    displayValue?: string;
+  }) => (
+    <div>
+      <label
+        style={{
+          display: "block",
+          marginBottom: "5px",
+          fontSize: "12px",
+          fontWeight: "bold",
+        }}
+      >
+        {label}
+        {displayValue && `: ${displayValue}`}
+      </label>
+      {type === "range" ? (
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          style={{ width: "100%" }}
+        />
+      ) : (
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ width: "100%", padding: "6px", fontSize: "12px" }}
+        >
+          {options?.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+
   return (
     <div
       style={{
@@ -404,7 +516,8 @@ function SynthControls({
           backgroundColor: "white",
           borderRadius: "8px",
           padding: "20px",
-          maxWidth: "800px",
+          maxWidth: "1200px",
+          width: "95%",
           maxHeight: "90vh",
           overflowY: "auto",
           boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
@@ -419,15 +532,13 @@ function SynthControls({
             marginBottom: "20px",
           }}
         >
-          <h2 style={{ margin: 0 }}>
-            🎛️ Track {trackNumber} / Channel {trackNumber} Settings
-          </h2>
+          <h2 style={{ margin: 0 }}>🎛️ Track {trackNumber} Settings</h2>
           <div style={{ display: "flex", gap: "10px" }}>
             <button
               onClick={() => setShowPresetBrowser(true)}
               style={{
                 padding: "8px 16px",
-                fontSize: "16px",
+                fontSize: "14px",
                 cursor: "pointer",
                 backgroundColor: "#2196F3",
                 color: "white",
@@ -441,7 +552,7 @@ function SynthControls({
               onClick={() => playPreview()}
               style={{
                 padding: "8px 16px",
-                fontSize: "16px",
+                fontSize: "14px",
                 cursor: "pointer",
                 backgroundColor: "#4CAF50",
                 color: "white",
@@ -455,7 +566,7 @@ function SynthControls({
               onClick={handleSave}
               style={{
                 padding: "8px 16px",
-                fontSize: "16px",
+                fontSize: "14px",
                 cursor: "pointer",
                 backgroundColor: "#4CAF50",
                 color: "white",
@@ -484,515 +595,473 @@ function SynthControls({
           <strong>Press Save to apply changes to the track.</strong>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "20px",
-          }}
-        >
-          {/* Oscillator Section */}
-          <div
-            style={{
-              padding: "15px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>🌊 Oscillator</h3>
-            <div style={{ marginBottom: "15px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Waveform
-              </label>
-              <select
-                value={params.oscType}
-                onChange={(e) =>
-                  handleChange(
-                    "oscType",
-                    e.target.value as SynthParams["oscType"],
-                  )
-                }
-                style={{ width: "100%", padding: "8px" }}
-              >
-                <option value="sine">Sine</option>
-                <option value="triangle">Triangle</option>
-                <option value="sawtooth">Sawtooth</option>
-                <option value="square">Square</option>
-              </select>
-            </div>
-          </div>
+        {/* Oscillator 1 */}
+        <ControlSection title="🌊 Oscillator 1">
+          <ControlInput
+            label="Waveform"
+            value={params.osc1Type}
+            onChange={(v) => handleChange("osc1Type", v)}
+            type="select"
+            options={[
+              { value: "sine", label: "∿ Sine" },
+              { value: "triangle", label: "△ Triangle" },
+              { value: "sawtooth", label: "⟋ Sawtooth" },
+              { value: "square", label: "⊓ Square" },
+            ]}
+          />
+          <ControlInput
+            label="Octave"
+            value={params.osc1Octave}
+            onChange={(v) => handleChange("osc1Octave", v)}
+            min={-3}
+            max={3}
+            step={1}
+            displayValue={params.osc1Octave.toString()}
+          />
+          <ControlInput
+            label="Semitone"
+            value={params.osc1Semitone}
+            onChange={(v) => handleChange("osc1Semitone", v)}
+            min={-12}
+            max={12}
+            step={1}
+            displayValue={params.osc1Semitone.toString()}
+          />
+          <ControlInput
+            label="Detune"
+            value={params.osc1Detune}
+            onChange={(v) => handleChange("osc1Detune", v)}
+            min={-100}
+            max={100}
+            step={1}
+            displayValue={`${params.osc1Detune.toFixed(0)} cents`}
+          />
+          <ControlInput
+            label="Shape"
+            value={params.osc1Shape}
+            onChange={(v) => handleChange("osc1Shape", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={params.osc1Shape.toFixed(2)}
+          />
+        </ControlSection>
 
-          {/* Amp Envelope Section */}
-          <div
-            style={{
-              padding: "15px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>📊 Amp Envelope</h3>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Attack: {(params.attack * 1000).toFixed(0)}ms
-              </label>
-              <input
-                type="range"
-                min="0.001"
-                max="2"
-                step="0.001"
-                value={params.attack}
-                onChange={(e) =>
-                  handleChange("attack", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Decay: {(params.decay * 1000).toFixed(0)}ms
-              </label>
-              <input
-                type="range"
-                min="0.001"
-                max="2"
-                step="0.001"
-                value={params.decay}
-                onChange={(e) =>
-                  handleChange("decay", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Sustain: {params.sustain.toFixed(2)}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={params.sustain}
-                onChange={(e) =>
-                  handleChange("sustain", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Release: {(params.release * 1000).toFixed(0)}ms
-              </label>
-              <input
-                type="range"
-                min="0.001"
-                max="5"
-                step="0.001"
-                value={params.release}
-                onChange={(e) =>
-                  handleChange("release", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-          </div>
+        {/* Oscillator 2 */}
+        <ControlSection title="🌊 Oscillator 2">
+          <ControlInput
+            label="Waveform"
+            value={params.osc2Type}
+            onChange={(v) => handleChange("osc2Type", v)}
+            type="select"
+            options={[
+              { value: "sine", label: "∿ Sine" },
+              { value: "triangle", label: "△ Triangle" },
+              { value: "sawtooth", label: "⟋ Sawtooth" },
+              { value: "square", label: "⊓ Square" },
+            ]}
+          />
+          <ControlInput
+            label="Octave"
+            value={params.osc2Octave}
+            onChange={(v) => handleChange("osc2Octave", v)}
+            min={-3}
+            max={3}
+            step={1}
+            displayValue={params.osc2Octave.toString()}
+          />
+          <ControlInput
+            label="Semitone"
+            value={params.osc2Semitone}
+            onChange={(v) => handleChange("osc2Semitone", v)}
+            min={-12}
+            max={12}
+            step={1}
+            displayValue={params.osc2Semitone.toString()}
+          />
+          <ControlInput
+            label="Detune"
+            value={params.osc2Detune}
+            onChange={(v) => handleChange("osc2Detune", v)}
+            min={-100}
+            max={100}
+            step={1}
+            displayValue={`${params.osc2Detune.toFixed(0)} cents`}
+          />
+          <ControlInput
+            label="Shape"
+            value={params.osc2Shape}
+            onChange={(v) => handleChange("osc2Shape", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={params.osc2Shape.toFixed(2)}
+          />
+        </ControlSection>
 
-          {/* Filter Section */}
-          <div
-            style={{
-              padding: "15px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>🔊 Filter</h3>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Type
-              </label>
-              <select
-                value={params.filterType}
-                onChange={(e) =>
-                  handleChange(
-                    "filterType",
-                    e.target.value as SynthParams["filterType"],
-                  )
-                }
-                style={{ width: "100%", padding: "8px" }}
-              >
-                <option value="lowpass">Lowpass</option>
-                <option value="highpass">Highpass</option>
-                <option value="bandpass">Bandpass</option>
-              </select>
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Frequency: {params.filterFreq.toFixed(0)}Hz
-              </label>
-              <input
-                type="range"
-                min="20"
-                max="20000"
-                step="1"
-                value={params.filterFreq}
-                onChange={(e) =>
-                  handleChange("filterFreq", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Resonance (Q): {params.filterQ.toFixed(1)}
-              </label>
-              <input
-                type="range"
-                min="0.1"
-                max="20"
-                step="0.1"
-                value={params.filterQ}
-                onChange={(e) =>
-                  handleChange("filterQ", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-          </div>
+        {/* Oscillator Mix */}
+        <ControlSection title="🎚️ Oscillator Mix">
+          <ControlInput
+            label="OSC 1 / OSC 2"
+            value={params.oscMix}
+            onChange={(v) => handleChange("oscMix", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.oscMix * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Ring Mod"
+            value={params.ringMod}
+            onChange={(v) => handleChange("ringMod", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.ringMod * 100).toFixed(0)}%`}
+          />
+        </ControlSection>
 
-          {/* Filter Envelope Section */}
-          <div
-            style={{
-              padding: "15px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>📈 Filter Envelope</h3>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Base Freq: {params.filterBaseFreq.toFixed(0)}Hz
-              </label>
-              <input
-                type="range"
-                min="20"
-                max="5000"
-                step="1"
-                value={params.filterBaseFreq}
-                onChange={(e) =>
-                  handleChange("filterBaseFreq", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Octaves: {params.filterOctaves.toFixed(1)}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="7"
-                step="0.1"
-                value={params.filterOctaves}
-                onChange={(e) =>
-                  handleChange("filterOctaves", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Attack: {(params.filterAttack * 1000).toFixed(0)}ms
-              </label>
-              <input
-                type="range"
-                min="0.001"
-                max="2"
-                step="0.001"
-                value={params.filterAttack}
-                onChange={(e) =>
-                  handleChange("filterAttack", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Decay: {(params.filterDecay * 1000).toFixed(0)}ms
-              </label>
-              <input
-                type="range"
-                min="0.001"
-                max="2"
-                step="0.001"
-                value={params.filterDecay}
-                onChange={(e) =>
-                  handleChange("filterDecay", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Sustain: {params.filterSustain.toFixed(2)}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={params.filterSustain}
-                onChange={(e) =>
-                  handleChange("filterSustain", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Release: {(params.filterRelease * 1000).toFixed(0)}ms
-              </label>
-              <input
-                type="range"
-                min="0.001"
-                max="5"
-                step="0.001"
-                value={params.filterRelease}
-                onChange={(e) =>
-                  handleChange("filterRelease", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-          </div>
+        {/* Amp Envelope */}
+        <ControlSection title="📊 Amp Envelope">
+          <ControlInput
+            label="Attack"
+            value={params.attack}
+            onChange={(v) => handleChange("attack", v)}
+            min={0.001}
+            max={2}
+            step={0.001}
+            displayValue={`${(params.attack * 1000).toFixed(0)}ms`}
+          />
+          <ControlInput
+            label="Decay"
+            value={params.decay}
+            onChange={(v) => handleChange("decay", v)}
+            min={0.001}
+            max={2}
+            step={0.001}
+            displayValue={`${(params.decay * 1000).toFixed(0)}ms`}
+          />
+          <ControlInput
+            label="Sustain"
+            value={params.sustain}
+            onChange={(v) => handleChange("sustain", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={params.sustain.toFixed(2)}
+          />
+          <ControlInput
+            label="Release"
+            value={params.release}
+            onChange={(v) => handleChange("release", v)}
+            min={0.001}
+            max={5}
+            step={0.001}
+            displayValue={`${(params.release * 1000).toFixed(0)}ms`}
+          />
+        </ControlSection>
 
-          {/* Volume & Portamento Section */}
-          <div
-            style={{
-              padding: "15px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>🔉 Volume & Glide</h3>
-            <div style={{ marginBottom: "15px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Volume: {params.volume.toFixed(1)}dB
-              </label>
-              <input
-                type="range"
-                min="-40"
-                max="6"
-                step="0.1"
-                value={params.volume}
-                onChange={(e) =>
-                  handleChange("volume", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Portamento: {(params.portamento * 1000).toFixed(0)}ms
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={params.portamento}
-                onChange={(e) =>
-                  handleChange("portamento", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-          </div>
+        {/* Amp */}
+        <ControlSection title="🔊 Amp">
+          <ControlInput
+            label="Volume"
+            value={params.volume}
+            onChange={(v) => handleChange("volume", v)}
+            min={-40}
+            max={6}
+            step={0.1}
+            displayValue={`${params.volume.toFixed(1)}dB`}
+          />
+          <ControlInput
+            label="Drive"
+            value={params.drive}
+            onChange={(v) => handleChange("drive", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.drive * 100).toFixed(0)}%`}
+          />
+        </ControlSection>
 
-          {/* LFO Section */}
-          <div
-            style={{
-              padding: "15px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>〰️ LFO</h3>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Target
-              </label>
-              <select
-                value={params.lfoTarget}
-                onChange={(e) =>
-                  handleChange(
-                    "lfoTarget",
-                    e.target.value as SynthParams["lfoTarget"],
-                  )
-                }
-                style={{ width: "100%", padding: "8px" }}
-              >
-                <option value="filter">Filter</option>
-                <option value="volume">Volume</option>
-                <option value="pitch">Pitch</option>
-              </select>
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Waveform
-              </label>
-              <select
-                value={params.lfoType}
-                onChange={(e) =>
-                  handleChange(
-                    "lfoType",
-                    e.target.value as SynthParams["lfoType"],
-                  )
-                }
-                style={{ width: "100%", padding: "8px" }}
-              >
-                <option value="sine">Sine</option>
-                <option value="triangle">Triangle</option>
-                <option value="sawtooth">Sawtooth</option>
-                <option value="square">Square</option>
-              </select>
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Rate: {params.lfoRate.toFixed(1)}Hz
-              </label>
-              <input
-                type="range"
-                min="0.1"
-                max="20"
-                step="0.1"
-                value={params.lfoRate}
-                onChange={(e) =>
-                  handleChange("lfoRate", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Depth: {params.lfoDepth.toFixed(2)}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={params.lfoDepth}
-                onChange={(e) =>
-                  handleChange("lfoDepth", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-          </div>
+        {/* Filter (Combined with Filter Envelope) */}
+        <ControlSection title="🔈 Filter">
+          <ControlInput
+            label="Type"
+            value={params.filterType}
+            onChange={(v) => handleChange("filterType", v)}
+            type="select"
+            options={[
+              { value: "lowpass", label: "Lowpass" },
+              { value: "highpass", label: "Highpass" },
+              { value: "bandpass", label: "Bandpass" },
+              { value: "notch", label: "Notch" },
+            ]}
+          />
+          <ControlInput
+            label="Resonance"
+            value={params.filterQ}
+            onChange={(v) => handleChange("filterQ", v)}
+            min={0.1}
+            max={20}
+            step={0.1}
+            displayValue={params.filterQ.toFixed(1)}
+          />
+          <ControlInput
+            label="Cutoff"
+            value={params.filterFreq}
+            onChange={(v) => handleChange("filterFreq", v)}
+            min={20}
+            max={20000}
+            step={1}
+            displayValue={`${params.filterFreq.toFixed(0)}Hz`}
+          />
+          <ControlInput
+            label="Key Track"
+            value={params.filterKeyTrack}
+            onChange={(v) => handleChange("filterKeyTrack", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.filterKeyTrack * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Env Amt"
+            value={params.filterEnvAmount}
+            onChange={(v) => handleChange("filterEnvAmount", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.filterEnvAmount * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Attack"
+            value={params.filterAttack}
+            onChange={(v) => handleChange("filterAttack", v)}
+            min={0.001}
+            max={2}
+            step={0.001}
+            displayValue={`${(params.filterAttack * 1000).toFixed(0)}ms`}
+          />
+          <ControlInput
+            label="Decay"
+            value={params.filterDecay}
+            onChange={(v) => handleChange("filterDecay", v)}
+            min={0.001}
+            max={2}
+            step={0.001}
+            displayValue={`${(params.filterDecay * 1000).toFixed(0)}ms`}
+          />
+          <ControlInput
+            label="Sustain"
+            value={params.filterSustain}
+            onChange={(v) => handleChange("filterSustain", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={params.filterSustain.toFixed(2)}
+          />
+          <ControlInput
+            label="Release"
+            value={params.filterRelease}
+            onChange={(v) => handleChange("filterRelease", v)}
+            min={0.001}
+            max={5}
+            step={0.001}
+            displayValue={`${(params.filterRelease * 1000).toFixed(0)}ms`}
+          />
+          <ControlInput
+            label="Base Freq"
+            value={params.filterBaseFreq}
+            onChange={(v) => handleChange("filterBaseFreq", v)}
+            min={20}
+            max={5000}
+            step={1}
+            displayValue={`${params.filterBaseFreq.toFixed(0)}Hz`}
+          />
+          <ControlInput
+            label="Octaves"
+            value={params.filterOctaves}
+            onChange={(v) => handleChange("filterOctaves", v)}
+            min={0}
+            max={7}
+            step={0.1}
+            displayValue={params.filterOctaves.toFixed(1)}
+          />
+        </ControlSection>
 
-          {/* Delay Section */}
-          <div
-            style={{
-              padding: "15px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>⏱️ Delay</h3>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Time: {(params.delayTime * 1000).toFixed(0)}ms
-              </label>
-              <input
-                type="range"
-                min="0.01"
-                max="1"
-                step="0.01"
-                value={params.delayTime}
-                onChange={(e) =>
-                  handleChange("delayTime", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Feedback: {(params.delayFeedback * 100).toFixed(0)}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="0.95"
-                step="0.01"
-                value={params.delayFeedback}
-                onChange={(e) =>
-                  handleChange("delayFeedback", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Wet: {(params.delayWet * 100).toFixed(0)}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={params.delayWet}
-                onChange={(e) =>
-                  handleChange("delayWet", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-          </div>
+        {/* Portamento */}
+        <ControlSection title="🎹 Portamento">
+          <ControlInput
+            label="Time"
+            value={params.portamento}
+            onChange={(v) => handleChange("portamento", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.portamento * 1000).toFixed(0)}ms`}
+          />
+          <ControlInput
+            label="Mode"
+            value={params.portamentoMode}
+            onChange={(v) => handleChange("portamentoMode", v)}
+            type="select"
+            options={[
+              { value: "off", label: "Off" },
+              { value: "legato", label: "Legato" },
+              { value: "always", label: "Always" },
+            ]}
+          />
+        </ControlSection>
 
-          {/* Reverb Section */}
-          <div
-            style={{
-              padding: "15px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>🌌 Reverb</h3>
-            <div style={{ marginBottom: "15px" }}>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Decay: {params.reverbDecay.toFixed(1)}s
-              </label>
-              <input
-                type="range"
-                min="0.1"
-                max="10"
-                step="0.1"
-                value={params.reverbDecay}
-                onChange={(e) =>
-                  handleChange("reverbDecay", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px" }}>
-                Wet: {(params.reverbWet * 100).toFixed(0)}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={params.reverbWet}
-                onChange={(e) =>
-                  handleChange("reverbWet", parseFloat(e.target.value))
-                }
-                style={{ width: "100%" }}
-              />
-            </div>
-          </div>
-        </div>
+        {/* LFO */}
+        <ControlSection title="〰️ LFO">
+          <ControlInput
+            label="Waveform"
+            value={params.lfoType}
+            onChange={(v) => handleChange("lfoType", v)}
+            type="select"
+            options={[
+              { value: "sine", label: "∿ Sine" },
+              { value: "triangle", label: "△ Triangle" },
+              { value: "sawtooth", label: "⟋ Sawtooth" },
+              { value: "square", label: "⊓ Square" },
+            ]}
+          />
+          <ControlInput
+            label="Speed"
+            value={params.lfoRate}
+            onChange={(v) => handleChange("lfoRate", v)}
+            min={0}
+            max={20}
+            step={0.1}
+            displayValue={`${params.lfoRate.toFixed(1)}Hz`}
+          />
+          <ControlInput
+            label="OSC 1"
+            value={params.lfoOsc1Amount}
+            onChange={(v) => handleChange("lfoOsc1Amount", v)}
+            min={0}
+            max={1}
+            step={0.001}
+            displayValue={`${(params.lfoOsc1Amount * 100).toFixed(1)}%`}
+          />
+          <ControlInput
+            label="OSC 2"
+            value={params.lfoOsc2Amount}
+            onChange={(v) => handleChange("lfoOsc2Amount", v)}
+            min={0}
+            max={1}
+            step={0.001}
+            displayValue={`${(params.lfoOsc2Amount * 100).toFixed(1)}%`}
+          />
+          <ControlInput
+            label="Filter"
+            value={params.lfoFilterAmount}
+            onChange={(v) => handleChange("lfoFilterAmount", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.lfoFilterAmount * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Amp"
+            value={params.lfoAmpAmount}
+            onChange={(v) => handleChange("lfoAmpAmount", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.lfoAmpAmount * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Depth"
+            value={params.lfoDepth}
+            onChange={(v) => handleChange("lfoDepth", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.lfoDepth * 100).toFixed(0)}%`}
+          />
+        </ControlSection>
+
+        {/* Delay */}
+        <ControlSection title="⏱️ Delay">
+          <ControlInput
+            label="Time"
+            value={params.delayTime}
+            onChange={(v) => handleChange("delayTime", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.delayTime * 1000).toFixed(0)}ms`}
+          />
+          <ControlInput
+            label="Feedback"
+            value={params.delayFeedback}
+            onChange={(v) => handleChange("delayFeedback", v)}
+            min={0}
+            max={0.95}
+            step={0.01}
+            displayValue={`${(params.delayFeedback * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Wet"
+            value={params.delayWet}
+            onChange={(v) => handleChange("delayWet", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.delayWet * 100).toFixed(0)}%`}
+          />
+        </ControlSection>
+
+        {/* Reverb */}
+        <ControlSection title="🌌 Reverb">
+          <ControlInput
+            label="Amount"
+            value={params.reverbWet}
+            onChange={(v) => handleChange("reverbWet", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.reverbWet * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Size"
+            value={params.reverbSize}
+            onChange={(v) => handleChange("reverbSize", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.reverbSize * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Stereo"
+            value={params.reverbStereo}
+            onChange={(v) => handleChange("reverbStereo", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.reverbStereo * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Damping"
+            value={params.reverbDamping}
+            onChange={(v) => handleChange("reverbDamping", v)}
+            min={0}
+            max={1}
+            step={0.01}
+            displayValue={`${(params.reverbDamping * 100).toFixed(0)}%`}
+          />
+          <ControlInput
+            label="Decay"
+            value={params.reverbDecay}
+            onChange={(v) => handleChange("reverbDecay", v)}
+            min={0.1}
+            max={10}
+            step={0.1}
+            displayValue={`${params.reverbDecay.toFixed(1)}s`}
+          />
+        </ControlSection>
       </div>
 
       {/* Preset Browser Modal */}

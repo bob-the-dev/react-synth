@@ -13,7 +13,7 @@ interface PresetBrowserProps {
 }
 
 function PresetBrowser({ onSelectPreset, onClose }: PresetBrowserProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string>("piano");
+  const [selectedCategory, setSelectedCategory] = useState<string>("bass");
   const [searchTerm, setSearchTerm] = useState<string>("");
 
   const filteredPresets = searchTerm

@@ -3,7 +3,7 @@ import * as Tone from "tone";
 import GridVisualizer from "./GridVisualizer";
 
 interface Track {
-  synth: Tone.PolySynth | null;
+  synth: Tone.PolySynth<any> | null;
   reverb: Tone.JCReverb | null;
   lfo: Tone.LFO | null;
   delay: Tone.FeedbackDelay | null;
@@ -95,6 +95,7 @@ function StepSequencer({
   const sequenceRef = useRef<SequenceStep[]>(sequence);
   const partsRef = useRef<Tone.Part[]>([]);
   const metronomeSynthRef = useRef<Tone.Synth | null>(null);
+  const voiceMonitorRef = useRef<number | null>(null);
 
   // Track arpeggio position and direction for each track (dynamic)
   const arpeggioStateRef = useRef<
@@ -289,20 +290,47 @@ function StepSequencer({
     // Start transport
     Tone.Transport.start();
     setIsPlaying(true);
+
+    // Monitor voice usage every 5 seconds
+    if (voiceMonitorRef.current) {
+      clearInterval(voiceMonitorRef.current);
+    }
+    voiceMonitorRef.current = setInterval(() => {
+      tracks.forEach((track, i) => {
+        if (track.synth) {
+          const usage = `${track.synth.activeVoices}/${track.synth.maxPolyphony}`;
+          if (track.synth.activeVoices > track.synth.maxPolyphony * 0.8) {
+            console.warn(`[Track ${i + 1}] High voice usage: ${usage}`);
+          }
+        }
+      });
+    }, 5000);
   };
 
   const stop = () => {
+    // Clear voice monitor
+    if (voiceMonitorRef.current) {
+      clearInterval(voiceMonitorRef.current);
+      voiceMonitorRef.current = null;
+    }
+
     // Stop and dispose parts first (before stopping transport)
     partsRef.current.forEach((part) => {
       try {
         part.stop(0); // Stop immediately at time 0
       } catch (e) {
-        // Ignore timing errors when stopping
         console.warn("Part stop error (ignored):", e);
       }
       part.dispose();
     });
     partsRef.current = [];
+
+    // Release all notes on all synths to free up voices
+    tracks.forEach((track) => {
+      if (track.synth) {
+        track.synth.releaseAll();
+      }
+    });
 
     // Then stop transport
     Tone.Transport.stop();
@@ -347,6 +375,11 @@ function StepSequencer({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // Clear voice monitor
+      if (voiceMonitorRef.current) {
+        clearInterval(voiceMonitorRef.current);
+      }
+
       // Clean up parts on unmount
       partsRef.current.forEach((part) => {
         try {
@@ -442,9 +475,7 @@ function StepSequencer({
             onChange={(e) => setVelocity(Number(e.target.value))}
             style={{ width: "100px" }}
           />
-          <span style={{ minWidth: "30px", fontSize: "14px" }}>
-            {velocity}
-          </span>
+          <span style={{ minWidth: "30px", fontSize: "14px" }}>{velocity}</span>
         </label>
 
         <button
