@@ -1,0 +1,228 @@
+<mxfile host="app.diagrams.net" modified="2026-03-08T12:00:00.000Z" agent="5.0" version="24.0.0">
+  <diagram name="Step Sequencer Architecture" id="arch">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title" value="Step Sequencer Architecture - Bottom-Up Design" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="20" width="800" height="40" as="geometry" />
+        </mxCell>
+        
+        <!-- Layer 1: Type System -->
+        <mxCell id="layer1-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#01579b;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="80" y="80" width="1440" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="layer1-title" value="TYPE SYSTEM (Foundation)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="90" width="300" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="type-sequence" value="SequenceTypes.ts&#xa;━━━━━━━━━━━━━━&#xa;PatternCell&#xa;PlayInstruction&#xa;Step&#xa;Track&#xa;SequenceGrid&#xa;NoteEvent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1976d2;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="130" width="180" height="60" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="type-audio" value="AudioTypes.ts&#xa;━━━━━━━━━━━━━━&#xa;AudioTrack&#xa;AudioTrackConfig" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1976d2;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="300" y="130" width="180" height="60" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="type-settings" value="SettingsTypes.ts&#xa;━━━━━━━━━━━━━━&#xa;OscillatorSettings&#xa;EnvelopeSettings&#xa;FilterSettings&#xa;LFOSettings&#xa;DelaySettings&#xa;ReverbSettings&#xa;TrackSettings (nested)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1976d2;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="500" y="130" width="220" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Layer 2: Pattern Library -->
+        <mxCell id="layer2-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#4a148c;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="80" y="230" width="700" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="layer2-title" value="PATTERN LIBRARY (Musical Building Blocks)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="240" width="400" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="pattern-cells" value="PatternCells.ts&#xa;━━━━━━━━━━━━━━━━━━━━&#xa;• Rest&#xa;• Single notes (4 types)&#xa;• Tuplets (2-8 notes)&#xa;• Arpeggios (7 types)&#xa;• Chords (4 types)&#xa;━━━━━━━━━━━━━━━━━━━━&#xa;25+ reusable patterns" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1bee7;strokeColor=#6a1b9a;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="280" width="250" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="pattern-engine" value="PatternEngine.ts&#xa;━━━━━━━━━━━━━━━━━━━━&#xa;resolveStep()&#xa;  → converts scale degrees&#xa;  → applies modifiers&#xa;  → returns NoteEvents&#xa;━━━━━━━━━━━━━━━━━━━━&#xa;Scale-aware resolution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1bee7;strokeColor=#6a1b9a;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="380" y="280" width="280" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from types to patterns -->
+        <mxCell id="arrow-type-pattern" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6a1b9a;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="type-sequence" target="pattern-cells">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Layer 3: Audio Engine -->
+        <mxCell id="layer3-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#e65100;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="820" y="230" width="700" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="layer3-title" value="AUDIO ENGINE (Tone.js Integration)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="840" y="240" width="400" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="sequence-scheduler" value="SequenceScheduler.ts&#xa;━━━━━━━━━━━━━━━━━━━━━━&#xa;scheduleTracks()&#xa;  → creates Tone.Parts&#xa;  → schedules metronome&#xa;  → visual feedback&#xa;start() / stop()&#xa;━━━━━━━━━━━━━━━━━━━━━━&#xa;Manages Transport" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#ef6c00;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="840" y="280" width="280" height="100" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="audio-context" value="AudioContext.ts&#xa;━━━━━━━━━━━━━━━━━━━━━━&#xa;createAudioTrack()&#xa;  → DualOscVoice synth&#xa;  → Effect chain:&#xa;    synth → distortion&#xa;    → filter → delay&#xa;    → reverb → dest&#xa;━━━━━━━━━━━━━━━━━━━━━━&#xa;Factory pattern" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#ef6c00;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="840" y="400" width="280" height="60" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="dual-osc" value="DualOscVoice.ts&#xa;━━━━━━━━━━━━━━━━━━━━━━&#xa;Custom Tone.js voice&#xa;• Dual oscillators&#xa;• Internal filter&#xa;• Amp + filter envelopes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#ef6c00;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="400" width="240" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from pattern engine to scheduler -->
+        <mxCell id="arrow-pattern-scheduler" value="NoteEvents" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ef6c00;strokeWidth=2;endArrow=classic;endFill=1;fontSize=12;" edge="1" parent="1" source="pattern-engine" target="sequence-scheduler">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Layer 4: UI Components (Bottom) -->
+        <mxCell id="layer4-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#1b5e20;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="80" y="500" width="1440" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="layer4-title" value="UI COMPONENTS (React - Bottom Up)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="510" width="400" height="30" as="geometry" />
+        </mxCell>
+        
+        <!-- Level 1: StepCell -->
+        <mxCell id="step-cell" value="StepCell.tsx&#xa;━━━━━━━━━━━━━━━━━━━━━━&#xa;Single grid cell&#xa;• Shows pattern name&#xa;• Click → PatternPicker&#xa;• Visual feedback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="700" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="pattern-picker" value="PatternPicker.tsx&#xa;━━━━━━━━━━━━━━━━━━━━━━&#xa;Modal dialog&#xa;• Search patterns&#xa;• Category filter&#xa;• Preview playback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="320" y="700" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow StepCell to PatternPicker -->
+        <mxCell id="arrow-cell-picker" value="opens" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2e7d32;strokeWidth=1;endArrow=classic;endFill=1;dashed=1;" edge="1" parent="1" source="step-cell" target="pattern-picker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Level 2: TrackRow -->
+        <mxCell id="track-row" value="TrackRow.tsx&#xa;━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━&#xa;One horizontal row&#xa;• Track header (name, volume, M/S)&#xa;• 8 × StepCell components&#xa;• Aggregates step changes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d6a7;strokeColor=#1b5e20;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="620" width="420" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from StepCell to TrackRow -->
+        <mxCell id="arrow-cell-row" value="8 cells" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1b5e20;strokeWidth=2;endArrow=classic;endFill=1;startArrow=classic;startFill=1;" edge="1" parent="1" source="track-row" target="step-cell">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Level 3: SequenceGrid -->
+        <mxCell id="sequence-grid" value="SequenceGrid.tsx&#xa;━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━&#xa;Complete grid layout&#xa;• 5 × TrackRow components&#xa;• Table with headers (step numbers)&#xa;• Coordinates all track/step changes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#81c784;strokeColor=#1b5e20;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="550" width="420" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from TrackRow to SequenceGrid -->
+        <mxCell id="arrow-row-grid" value="5 rows" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1b5e20;strokeWidth=2;endArrow=classic;endFill=1;startArrow=classic;startFill=1;" edge="1" parent="1" source="sequence-grid" target="track-row">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Transport Controls -->
+        <mxCell id="transport" value="TransportControls.tsx&#xa;━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━&#xa;Playback controls&#xa;• Play/Stop button&#xa;• BPM slider&#xa;• Metronome toggle" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="560" y="620" width="320" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Layer 5: Orchestrator -->
+        <mxCell id="layer5-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#880e4f;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="80" y="810" width="1440" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="layer5-title" value="ORCHESTRATOR (Main Component)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="820" width="400" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="step-sequencer-new" value="StepSequencerNew.tsx (250 lines - was 683!)&#xa;━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━&#xa;RESPONSIBILITIES:&#xa;  • Owns SequenceScheduler instance&#xa;  • Manages musical scale &amp; global playback state (BPM, playing, metronome)&#xa;  • Coordinates: SequenceGrid ↔ SequenceScheduler ↔ AudioTracks&#xa;  • Handles play/stop → schedules tracks → starts Transport&#xa;  • Updates on sequence changes (live editing while playing)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#ad1457;fontFamily=Courier New;fontSize=11;align=left;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="860" width="780" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrows from grid and transport to orchestrator -->
+        <mxCell id="arrow-grid-orch" value="tracks data" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ad1457;strokeWidth=2;endArrow=classic;endFill=1;startArrow=classic;startFill=1;" edge="1" parent="1" source="step-sequencer-new" target="sequence-grid">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow-transport-orch" value="playback ctrl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ad1457;strokeWidth=2;endArrow=classic;endFill=1;startArrow=classic;startFill=1;" edge="1" parent="1" source="step-sequencer-new" target="transport">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from orchestrator to scheduler -->
+        <mxCell id="arrow-orch-scheduler" value="schedules playback" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ad1457;strokeWidth=3;endArrow=classic;endFill=1;" edge="1" parent="1" source="step-sequencer-new" target="sequence-scheduler">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="980" y="890" />
+              <mxPoint x="980" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Layer 6: Services -->
+        <mxCell id="layer6-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f57f17;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="80" y="960" width="700" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="layer6-title" value="SERVICES (Infrastructure)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="970" width="300" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="storage-service" value="StorageService.ts&#xa;━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━&#xa;Centralized localStorage&#xa;• Version management&#xa;• Type-safe getters/setters&#xa;• BPM, metronome, sequence, settings&#xa;• Error handling" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff59d;strokeColor=#f9a825;fontFamily=Courier New;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1010" width="380" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from orchestrator to storage -->
+        <mxCell id="arrow-orch-storage" value="persistence" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#f9a825;strokeWidth=2;endArrow=classic;endFill=1;startArrow=classic;startFill=1;dashed=1;" edge="1" parent="1" source="step-sequencer-new" target="storage-service">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Layer 7: Main App -->
+        <mxCell id="layer7-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#b71c1c;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="820" y="960" width="700" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="layer7-title" value="MAIN APPLICATION" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="840" y="970" width="300" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="main-app" value="main.tsx (SynthKeyboard)&#xa;━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━&#xa;• Creates 4 AudioTracks via AudioContext factory&#xa;• Manages track settings, volumes, mutes&#xa;• Renders: StepSequencerNew + SynthControls modal&#xa;• Persistence via StorageService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcdd2;strokeColor=#c62828;fontFamily=Courier New;fontSize=11;align=left;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="840" y="1010" width="520" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow from main to orchestrator -->
+        <mxCell id="arrow-main-orch" value="renders" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#c62828;strokeWidth=3;endArrow=classic;endFill=1;" edge="1" parent="1" source="main-app" target="step-sequencer-new">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="950" />
+              <mxPoint x="490" y="950" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Arrow from main to audio context -->
+        <mxCell id="arrow-main-audio" value="creates tracks" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#c62828;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="main-app" target="audio-context">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="950" />
+              <mxPoint x="980" y="950" />
+              <mxPoint x="980" y="430" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Data Flow Annotations -->
+        <mxCell id="dataflow-title" value="DATA FLOW" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#1565c0;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="520" width="150" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="dataflow-bottom-up" value="⬆ BOTTOM-UP&#xa;(Planning Notes)&#xa;━━━━━━━━━━━━━━&#xa;StepCell&#xa;  patternId&#xa;    ↓&#xa;TrackRow&#xa;  Track + Steps&#xa;    ↓&#xa;SequenceGrid&#xa;  All tracks&#xa;    ↓&#xa;StepSequencer&#xa;  + PatternEngine&#xa;    ↓&#xa;SequenceScheduler&#xa;  NoteEvents&#xa;    ↓&#xa;Tone.Transport&#xa;  Audio output" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;fontSize=11;fontFamily=Courier New;align=left;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1320" y="560" width="200" height="260" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="dataflow-top-down" value="⬇ TOP-DOWN&#xa;(Rendering)&#xa;━━━━━━━━━━━━━━&#xa;main.tsx&#xa;  audioTracks[]&#xa;    ↓&#xa;StepSequencer&#xa;  currentStep&#xa;  scale&#xa;    ↓&#xa;SequenceGrid&#xa;  tracks[]&#xa;  currentStep&#xa;    ↓&#xa;TrackRow&#xa;  track, step#&#xa;    ↓&#xa;StepCell&#xa;  isActive&#xa;  (highlights)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#e65100;fontSize=11;fontFamily=Courier New;align=left;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1320" y="840" width="200" height="240" as="geometry" />
+        </mxCell>
+        
+        <!-- Key Benefits Box -->
+        <mxCell id="benefits-box" value="✨ KEY IMPROVEMENTS&#xa;━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━&#xa;✓ StepSequencer: 683 → 250 lines (-63%)&#xa;✓ No duplicate types (removed 3 copies)&#xa;✓ 25+ reusable pattern cells&#xa;✓ Scale-degree based (musical flexibility)&#xa;✓ Centralized persistence&#xa;✓ Factory pattern for audio&#xa;✓ Clean separation of concerns&#xa;✓ Easy to extend (new patterns, scales, features)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;fontSize=12;fontFamily=Courier New;align=left;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1050" y="80" width="470" height="160" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
