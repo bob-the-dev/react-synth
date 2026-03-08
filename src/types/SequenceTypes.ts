@@ -51,12 +51,32 @@ export interface PatternCell {
 }
 
 /**
+ * Custom drawn note (for piano roll mode)
+ */
+export interface CustomNote {
+  /** Note pitch in MIDI number (0-127) */
+  pitch: number;
+
+  /** Position within the step (0.0 = start, 1.0 = end) */
+  position: number;
+
+  /** Duration as fraction of step (typically 0.125 for 8th note) */
+  duration: number;
+
+  /** Velocity (0-127) */
+  velocity?: number;
+}
+
+/**
  * A step represents one cell in the sequencer grid.
  * It references a pattern and can apply per-step modifiers.
  */
 export interface Step {
   /** Reference to a pattern cell ID, or null for empty step */
   patternId: string | null;
+
+  /** Custom drawn notes (alternative to pattern) */
+  customNotes?: CustomNote[];
 
   /** Transpose amount in semitones (e.g., +12 = up one octave) */
   transpose?: number;
@@ -66,6 +86,12 @@ export interface Step {
 
   /** Mute this specific step */
   muted?: boolean;
+
+  /** Root note for the pattern (e.g., "C4", "D#3") - overrides default scale */
+  rootNote?: string;
+
+  /** If true, multi-note patterns arpeggiate randomly instead of playing as a chord */
+  arpeggiate?: boolean;
 }
 
 /**

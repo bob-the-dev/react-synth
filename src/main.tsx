@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import * as Tone from "tone";
 import StepSequencerNew from "./components/StepSequencerNew";
-import SynthControls from "./components/SynthControls";
-import { getPresetByName } from "./presets/instrumentPresets";
+import SimpleSynthControls from "./components/SimpleSynthControls";
 import { AudioTrack } from "./types/AudioTypes";
-import { createAudioTrack, disposeAudioTrack } from "./engine/AudioContext";
+import {
+  createSimpleTracks,
+  disposeSimpleTracks,
+} from "./engine/SimpleInstruments";
 import * as StorageService from "./services/StorageService";
 
 /**
@@ -58,109 +60,12 @@ import * as StorageService from "./services/StorageService";
 // Configure number of tracks (change this to add/remove tracks)
 const NUM_TRACKS = 4;
 
-interface TrackSettings {
-  // Oscillator 1
-  osc1Type: "sine" | "square" | "sawtooth" | "triangle";
-  osc1Octave: number;
-  osc1Semitone: number;
-  osc1Detune: number;
-  osc1Shape: number;
-
-  // Oscillator 2
-  osc2Type: "sine" | "square" | "sawtooth" | "triangle";
-  osc2Octave: number;
-  osc2Semitone: number;
-  osc2Detune: number;
-  osc2Shape: number;
-
-  // Oscillator Mix
-  oscMix: number;
-  ringMod: number;
-
-  // Amp Envelope
-  attack: number;
-  decay: number;
-  sustain: number;
-  release: number;
-
-  // Amp
-  volume: number;
-  drive: number;
-
-  // Filter
-  filterType: "lowpass" | "highpass" | "bandpass" | "notch";
-  filterFreq: number;
-  filterQ: number;
-  filterEnvAmount: number;
-  filterKeyTrack: number;
-
-  // Filter Envelope
-  filterAttack: number;
-  filterDecay: number;
-  filterSustain: number;
-  filterRelease: number;
-  filterBaseFreq: number;
-  filterOctaves: number;
-
-  // Portamento
-  portamento: number;
-  portamentoMode: "always" | "legato" | "off";
-
-  // LFO
-  lfoRate: number;
-  lfoDepth: number;
-  lfoType: "sine" | "square" | "sawtooth" | "triangle";
-  lfoOsc1Amount: number;
-  lfoOsc2Amount: number;
-  lfoFilterAmount: number;
-  lfoAmpAmount: number;
-
-  // Delay
-  delayTime: number;
-  delayFeedback: number;
-  delayWet: number;
-
-  // Reverb
-  reverbDecay: number;
-  reverbWet: number;
-  reverbSize: number;
-  reverbStereo: number;
-  reverbDamping: number;
-}
-
 function SynthKeyboard() {
-  // Dynamic arrays for synths and reverbs
-  const tracksRef = useRef<AudioTrack[]>(
-    Array(NUM_TRACKS)
-      .fill(null)
-      .map(() => ({
-        synth: null,
-        reverb: null,
-        lfo: null,
-        delay: null,
-        filter: null,
-        distortion: null,
-      })),
-  );
+  // Simple array of tracks - each has a hardcoded instrument
+  // Track 1: Piano, Track 2: Bass, Track 3: Hi-hat, Track 4: Drone
+  const tracksRef = useRef<AudioTrack[]>([]);
 
-  // Store settings per track to prevent sharing
-  // Initialize with preset instruments or load from localStorage
-  const [trackSettings, setTrackSettings] = useState<TrackSettings[]>(() => {
-    return StorageService.getTrackSettings().length > 0
-      ? StorageService.getTrackSettings()
-      : [
-          // Track 1 - Bass
-          getPresetByName("Bass")!.settings,
-          // Track 2 - Piano
-          getPresetByName("Piano")!.settings,
-          // Track 3 - Pad
-          getPresetByName("Pad")!.settings,
-          // Track 4 - Lead
-          getPresetByName("Lead")!.settings,
-        ];
-  });
-
-  // Track volume and mute controls (separate from synth settings)
+  // Track volume and mute controls
   const [trackVolumes, setTrackVolumes] = useState<number[]>(() =>
     StorageService.getTrackVolumes(NUM_TRACKS),
   );
@@ -169,48 +74,45 @@ function SynthKeyboard() {
     StorageService.getTrackMutes(NUM_TRACKS),
   );
 
-  const [isSynthControlsOpen, setIsSynthControlsOpen] =
-    useState<boolean>(false);
-  const [activeTrack, setActiveTrack] = useState<number>(1); // Which track's synth to configure
+  // Instrument settings for each track
+  const [instrumentSettings, setInstrumentSettings] = useState<any[]>(() =>
+    Array(NUM_TRACKS).fill(null),
+  );
 
-  // Initialize all tracks dynamically
+  // Synth controls modal state
+  const [isSynthControlsOpen, setIsSynthControlsOpen] = useState(false);
+  const [activeTrack, setActiveTrack] = useState(0); // 0-indexed
+
+  const trackNames = ["🎹 Piano", "🔊 Bass", "🥁 Hi-hat", "🌊 Drone"];
+
+  // Initialize all tracks with simple, hardcoded instruments
   useEffect(() => {
     // Check if already initialized
-    if (tracksRef.current[0].synth) return;
+    if (tracksRef.current.length > 0 && tracksRef.current[0].synth) return;
 
-    // Create synth and effects for each track using AudioContext factory
-    for (let i = 0; i < NUM_TRACKS; i++) {
-      const settings = trackSettings[i];
-      tracksRef.current[i] = createAudioTrack(settings);
+    // Create simple tracks (Piano, Bass, Hi-hat, Drone) - async for reverb generation
+    createSimpleTracks().then((tracks) => {
+      tracksRef.current = tracks;
 
       // Apply volume from state
-      if (tracksRef.current[i].synth) {
-        tracksRef.current[i].synth!.volume.value = trackVolumes[i];
-      }
+      tracksRef.current.forEach((track, i) => {
+        if (track.synth) {
+          track.synth.volume.value = trackVolumes[i];
+        }
+      });
 
-      console.log(`[Track ${i + 1}] Synth created with maxPolyphony: 128`);
-    }
-
-    // Log successful initialization
-    console.log("✅ All tracks initialized successfully");
-    console.log("Audio context state:", Tone.getContext().state);
+      console.log("✅ Simple tracks initialized:");
+      console.log("  Track 1: Piano (melodic)");
+      console.log("  Track 2: Bass (punchy)");
+      console.log("  Track 3: Hi-hat (percussive)");
+      console.log("  Track 4: Drone (sustained pad)");
+      console.log("Audio context state:", Tone.getContext().state);
+    });
 
     return () => {
-      // Clean up all tracks using AudioContext factory
-      tracksRef.current.forEach((track) => {
-        disposeAudioTrack(track);
-      });
-      // Reset refs
-      tracksRef.current = Array(NUM_TRACKS)
-        .fill(null)
-        .map(() => ({
-          synth: null,
-          reverb: null,
-          lfo: null,
-          delay: null,
-          filter: null,
-          distortion: null,
-        }));
+      // Clean up all tracks
+      disposeSimpleTracks(tracksRef.current);
+      tracksRef.current = [];
     };
   }, []);
 
@@ -224,20 +126,104 @@ function SynthKeyboard() {
     });
   }, [trackVolumes, trackMutes]);
 
-  // Save track settings to localStorage
-  useEffect(() => {
-    StorageService.setTrackSettings(trackSettings);
-  }, [trackSettings]);
+  // Helper function to apply instrument settings to a track
+  const applyInstrumentSettings = (trackIndex: number, settings: any) => {
+    const track = tracksRef.current[trackIndex];
+    if (!track?.synth || !settings) return;
 
-  // Save track volumes to localStorage
+    try {
+      // Apply oscillator and envelope settings
+      track.synth.set({
+        oscillator: { type: settings.oscType },
+        envelope: {
+          attack: settings.attack,
+          decay: settings.decay,
+          sustain: settings.sustain,
+          release: settings.release,
+        },
+        detune: settings.oscDetune,
+        volume: settings.volume,
+      });
+
+      // Apply filter settings if available
+      if (track.filter && settings.filterType !== undefined) {
+        track.filter.type = settings.filterType;
+        track.filter.frequency.value = settings.filterFreq;
+        track.filter.Q.value = settings.filterQ;
+      }
+
+      // Apply distortion settings if available
+      if (track.distortion && settings.drive !== undefined) {
+        track.distortion.distortion = settings.drive;
+        track.distortion.wet.value = settings.drive > 0 ? 1 : 0;
+      }
+
+      // Apply delay settings if available
+      if (track.delay && settings.delayTime !== undefined) {
+        track.delay.delayTime.value = settings.delayTime;
+        track.delay.feedback.value = settings.delayFeedback;
+        track.delay.wet.value = settings.delayWet;
+      }
+
+      // Apply reverb settings if available
+      if (track.reverb && settings.reverbWet !== undefined) {
+        track.reverb.wet.value = settings.reverbWet;
+        if ("decay" in track.reverb && settings.reverbDecay !== undefined) {
+          (track.reverb as any).decay = settings.reverbDecay;
+        }
+      }
+
+      console.log(`✅ Applied saved settings to ${trackNames[trackIndex]}`);
+    } catch (error) {
+      console.error(`Failed to apply settings to track ${trackIndex}:`, error);
+    }
+  };
+
+  // Load saved instrument settings on mount (but don't auto-apply, only when Load is clicked)
   useEffect(() => {
+    // This effect intentionally does nothing on mount
+    // Settings are only loaded when user clicks "Load Settings"
+  }, []);
+
+  // Manual save function
+  const handleSaveSettings = () => {
     StorageService.setTrackVolumes(trackVolumes);
-  }, [trackVolumes]);
-
-  // Save track mutes to localStorage
-  useEffect(() => {
     StorageService.setTrackMutes(trackMutes);
-  }, [trackMutes]);
+    StorageService.setTrackSettings(instrumentSettings);
+    alert("Settings saved!");
+  };
+
+  // Manual load function
+  const handleLoadSettings = () => {
+    const loadedVolumes = StorageService.loadTrackVolumes(NUM_TRACKS);
+    const loadedMutes = StorageService.loadTrackMutes(NUM_TRACKS);
+    const loadedSettings = StorageService.loadTrackSettings();
+
+    setTrackVolumes(loadedVolumes);
+    setTrackMutes(loadedMutes);
+
+    // Apply instrument settings to each track
+    if (loadedSettings && loadedSettings.length > 0) {
+      setInstrumentSettings(loadedSettings);
+      loadedSettings.forEach((settings, index) => {
+        if (settings && index < NUM_TRACKS) {
+          applyInstrumentSettings(index, settings);
+        }
+      });
+    }
+
+    alert("Settings loaded!");
+  };
+
+  // Handle instrument settings save from SimpleSynthControls
+  const handleInstrumentSettingsSave = (trackIndex: number, settings: any) => {
+    setInstrumentSettings((prev) => {
+      const updated = [...prev];
+      updated[trackIndex] = settings;
+      return updated;
+    });
+    console.log(`💾 Saved instrument settings for ${trackNames[trackIndex]}`);
+  };
 
   return (
     <div
@@ -252,6 +238,50 @@ function SynthKeyboard() {
       <p style={{ color: "#666", marginBottom: "20px" }}>
         Create musical sequences with the step sequencer.
       </p>
+
+      {/* Save/Load Controls */}
+      <div
+        style={{
+          marginBottom: "20px",
+          display: "flex",
+          gap: "10px",
+          alignItems: "center",
+        }}
+      >
+        <button
+          onClick={handleSaveSettings}
+          style={{
+            padding: "8px 16px",
+            fontSize: "14px",
+            backgroundColor: "#4CAF50",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontWeight: "bold",
+          }}
+        >
+          💾 Save Settings
+        </button>
+        <button
+          onClick={handleLoadSettings}
+          style={{
+            padding: "8px 16px",
+            fontSize: "14px",
+            backgroundColor: "#2196F3",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontWeight: "bold",
+          }}
+        >
+          📂 Load Settings
+        </button>
+        <span style={{ fontSize: "12px", color: "#999", marginLeft: "10px" }}>
+          Settings are not saved automatically
+        </span>
+      </div>
 
       {/* Step Sequencer */}
       <StepSequencerNew
@@ -273,31 +303,32 @@ function SynthKeyboard() {
             return updated;
           });
         }}
-        onTrackSelect={(track) => {
-          setActiveTrack(track);
+        onTrackSelect={(trackIndex) => {
+          setActiveTrack(trackIndex - 1); // Convert 1-based to 0-indexed
           setIsSynthControlsOpen(true);
+        }}
+        onPreviewNote={async (trackIndex, noteName) => {
+          // Preview a note on the specified track
+          await Tone.start();
+          const track = tracksRef.current[trackIndex];
+          if (track?.synth) {
+            track.synth.triggerAttackRelease(noteName, "8n");
+          }
         }}
       />
 
       {/* Synth Controls Modal */}
-      <SynthControls
-        synth={tracksRef.current[activeTrack - 1]?.synth || null}
-        reverb={tracksRef.current[activeTrack - 1]?.reverb || null}
-        lfo={tracksRef.current[activeTrack - 1]?.lfo || null}
-        delay={tracksRef.current[activeTrack - 1]?.delay || null}
-        filter={tracksRef.current[activeTrack - 1]?.filter || null}
-        distortion={tracksRef.current[activeTrack - 1]?.distortion || null}
-        trackNumber={activeTrack}
+      <SimpleSynthControls
+        synth={tracksRef.current[activeTrack]?.synth || null}
+        reverb={tracksRef.current[activeTrack]?.reverb || null}
+        delay={tracksRef.current[activeTrack]?.delay || null}
+        filter={tracksRef.current[activeTrack]?.filter || null}
+        distortion={tracksRef.current[activeTrack]?.distortion || null}
+        trackNumber={activeTrack + 1}
+        trackName={trackNames[activeTrack]}
         isOpen={isSynthControlsOpen}
         onClose={() => setIsSynthControlsOpen(false)}
-        initialSettings={trackSettings[activeTrack - 1]}
-        onSettingsChange={(newSettings) => {
-          setTrackSettings((prev) => {
-            const updated = [...prev];
-            updated[activeTrack - 1] = newSettings;
-            return updated;
-          });
-        }}
+        onSave={handleInstrumentSettingsSave}
       />
     </div>
   );

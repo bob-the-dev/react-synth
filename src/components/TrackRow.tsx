@@ -25,6 +25,9 @@ interface TrackRowProps {
 
   /** Callback when track header is clicked (for opening synth controls) */
   onHeaderClick?: () => void;
+
+  /** Callback to preview a note on this track */
+  onPreviewNote?: (noteName: string) => void;
 }
 
 export default function TrackRow({
@@ -34,6 +37,7 @@ export default function TrackRow({
   onStepChange,
   trackIndex,
   onHeaderClick,
+  onPreviewNote,
 }: TrackRowProps) {
   const handleVolumeChange = (volume: number) => {
     onTrackChange({ ...track, volume });
@@ -97,7 +101,7 @@ export default function TrackRow({
           <input
             type="range"
             min="-60"
-            max="6"
+            max="12"
             step="1"
             value={track.volume}
             onChange={(e) => handleVolumeChange(Number(e.target.value))}
@@ -145,10 +149,12 @@ export default function TrackRow({
         <StepCell
           key={stepIndex}
           step={step}
+          allSteps={track.steps}
           onChange={(newStep) => onStepChange(stepIndex, newStep)}
           isActive={stepIndex === currentStep}
           trackIndex={trackIndex}
           stepIndex={stepIndex}
+          onPreviewNote={onPreviewNote}
         />
       ))}
     </tr>

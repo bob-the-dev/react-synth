@@ -93,9 +93,17 @@ export function setVelocity(velocity: number): void {
 }
 
 /**
- * Get sequence (tracks with steps)
+ * Get sequence (manual load only)
  */
 export function getSequence(): any {
+  // Return null without loading from storage
+  return null;
+}
+
+/**
+ * Load sequence from storage (manual)
+ */
+export function loadSequence(): any {
   return getItem(STORAGE_KEYS.SEQUENCE, null);
 }
 
@@ -107,9 +115,17 @@ export function setSequence(sequence: any): void {
 }
 
 /**
- * Get track settings
+ * Get track settings (manual load only)
  */
 export function getTrackSettings(): any[] {
+  // Return empty array without loading from storage
+  return [];
+}
+
+/**
+ * Load track settings from storage (manual)
+ */
+export function loadTrackSettings(): any[] {
   return getItem(STORAGE_KEYS.TRACK_SETTINGS, []);
 }
 
@@ -121,10 +137,18 @@ export function setTrackSettings(settings: any[]): void {
 }
 
 /**
- * Get track volumes
+ * Get track volumes (manual load only)
  */
 export function getTrackVolumes(numTracks: number): number[] {
-  return getItem(STORAGE_KEYS.TRACK_VOLUMES, Array(numTracks).fill(0));
+  // Return defaults without loading from storage
+  return Array(numTracks).fill(-3); // -3 dB is clearly audible
+}
+
+/**
+ * Load track volumes from storage (manual)
+ */
+export function loadTrackVolumes(numTracks: number): number[] {
+  return getItem(STORAGE_KEYS.TRACK_VOLUMES, Array(numTracks).fill(-3));
 }
 
 /**
@@ -135,9 +159,17 @@ export function setTrackVolumes(volumes: number[]): void {
 }
 
 /**
- * Get track mutes
+ * Get track mutes (manual load only)
  */
 export function getTrackMutes(numTracks: number): boolean[] {
+  // Return defaults without loading from storage
+  return Array(numTracks).fill(false);
+}
+
+/**
+ * Load track mutes from storage (manual)
+ */
+export function loadTrackMutes(numTracks: number): boolean[] {
   return getItem(STORAGE_KEYS.TRACK_MUTES, Array(numTracks).fill(false));
 }
 

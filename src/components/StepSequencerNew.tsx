@@ -29,6 +29,7 @@ interface StepSequencerProps {
   onVolumeChange: (trackIndex: number, volume: number) => void;
   onMuteToggle: (trackIndex: number) => void;
   onTrackSelect?: (track: number) => void;
+  onPreviewNote?: (trackIndex: number, noteName: string) => void;
 }
 
 const STEPS_PER_BAR = 8;
@@ -41,14 +42,13 @@ export default function StepSequencer({
   onVolumeChange,
   onMuteToggle,
   onTrackSelect,
+  onPreviewNote,
 }: StepSequencerProps) {
   // Playback state
-  const [bpm, setBpm] = useState(() => StorageService.getBPM());
+  const [bpm, setBpm] = useState(120); // Don't auto-load
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [metronomeEnabled, setMetronomeEnabled] = useState(() =>
-    StorageService.getMetronomeEnabled(),
-  );
+  const [metronomeEnabled, setMetronomeEnabled] = useState(true); // Don't auto-load
 
   // Musical state
   const [scale] = useState(() => StorageService.getScale());
@@ -73,23 +73,12 @@ export default function StepSequencer({
     };
   }, []);
 
-  // Persist BPM changes
+  // Update BPM in scheduler when changed
   useEffect(() => {
-    StorageService.setBPM(bpm);
     if (schedulerRef.current) {
       schedulerRef.current.setBPM(bpm);
     }
   }, [bpm]);
-
-  // Persist metronome changes
-  useEffect(() => {
-    StorageService.setMetronomeEnabled(metronomeEnabled);
-  }, [metronomeEnabled]);
-
-  // Persist sequence changes
-  useEffect(() => {
-    StorageService.setSequence(sequenceTracks);
-  }, [sequenceTracks]);
 
   // Sync volumes and mutes from parent
   useEffect(() => {
@@ -179,6 +168,32 @@ export default function StepSequencer({
     }
   };
 
+  // Manual save all settings
+  const handleSaveAll = () => {
+    StorageService.setBPM(bpm);
+    StorageService.setMetronomeEnabled(metronomeEnabled);
+    StorageService.setSequence(sequenceTracks);
+    alert("Sequence saved!");
+  };
+
+  // Manual load all settings
+  const handleLoadAll = () => {
+    const loadedBpm = StorageService.getBPM();
+    const loadedMetronome = StorageService.getMetronomeEnabled();
+    const loadedSequence = StorageService.loadSequence();
+
+    setBpm(loadedBpm);
+    setMetronomeEnabled(loadedMetronome);
+    if (
+      loadedSequence &&
+      Array.isArray(loadedSequence) &&
+      loadedSequence.length === numTracks
+    ) {
+      setSequenceTracks(loadedSequence);
+    }
+    alert("Sequence loaded!");
+  };
+
   return (
     <div style={{ marginBottom: "20px" }}>
       <h2 style={{ marginTop: 0 }}>Step Sequencer</h2>
@@ -193,6 +208,49 @@ export default function StepSequencer({
         onMetronomeToggle={() => setMetronomeEnabled(!metronomeEnabled)}
       />
 
+      {/* Save/Load Buttons */}
+      <div
+        style={{
+          marginTop: "12px",
+          marginBottom: "12px",
+          display: "flex",
+          gap: "10px",
+          alignItems: "center",
+        }}
+      >
+        <button
+          onClick={handleSaveAll}
+          style={{
+            padding: "6px 12px",
+            fontSize: "13px",
+            backgroundColor: "#4CAF50",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          💾 Save Sequence
+        </button>
+        <button
+          onClick={handleLoadAll}
+          style={{
+            padding: "6px 12px",
+            fontSize: "13px",
+            backgroundColor: "#2196F3",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          📂 Load Sequence
+        </button>
+        <span style={{ fontSize: "11px", color: "#999" }}>
+          Sequence not saved automatically
+        </span>
+      </div>
+
       {/* Visual Grid Indicator */}
       <div style={{ marginBottom: "16px" }}>
         <GridVisualizer currentStep={currentStep} isPlaying={isPlaying} />
@@ -205,6 +263,7 @@ export default function StepSequencer({
         stepsPerBar={STEPS_PER_BAR}
         onTracksChange={handleTracksChange}
         onTrackHeaderClick={handleTrackHeaderClick}
+        onPreviewNote={onPreviewNote}
       />
 
       {/* Info */}
@@ -226,16 +285,11 @@ export default function StepSequencer({
  * Initialize sequence tracks with default empty steps
  */
 function initializeSequenceTracks(numTracks: number): Track[] {
-  // Try loading from storage first
-  const saved = StorageService.getSequence();
-  if (saved && Array.isArray(saved) && saved.length === numTracks) {
-    return saved;
-  }
-
+  // Don't auto-load - start fresh
   // Create default tracks with empty steps
   return Array.from({ length: numTracks }, (_, i) => ({
     id: `track-${i}`,
-    name: `Track ${i + 1}`,
+    name: getDefaultTrackName(i),
     instrumentPresetId: getDefaultInstrumentForTrack(i),
     steps: Array.from(
       { length: STEPS_PER_BAR },
@@ -247,15 +301,23 @@ function initializeSequenceTracks(numTracks: number): Track[] {
       }),
     ),
     muted: false,
-    volume: 0,
+    volume: -3, // -3 dB is clearly audible
     solo: false,
   }));
+}
+
+/**
+ * Get default track name
+ */
+function getDefaultTrackName(trackIndex: number): string {
+  const names = ["🎹 Piano", "🔊 Bass", "🥁 Hi-hat", "🌊 Drone"];
+  return names[trackIndex] || `Track ${trackIndex + 1}`;
 }
 
 /**
  * Get default instrument preset for track
  */
 function getDefaultInstrumentForTrack(trackIndex: number): string {
-  const defaults = ["Bass", "Piano", "Pad", "Lead", "Synth"];
+  const defaults = ["Piano", "Bass", "Hi-hat", "Drone"];
   return defaults[trackIndex] || "Piano";
 }

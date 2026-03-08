@@ -43,8 +43,6 @@ export class SequenceScheduler {
     // Clear existing parts
     this.dispose();
 
-    console.log(`[SequenceScheduler] scheduleTracks called with ${tracks.length} tracks, BPM: ${bpm}, stepsPerBar: ${stepsPerBar}`);
-
     const secondsPerBeat = 60.0 / bpm;
 
     // Schedule metronome if enabled
@@ -59,21 +57,13 @@ export class SequenceScheduler {
 
     // Schedule each track
     tracks.forEach((track, trackIndex) => {
-      if (track.muted) {
-        console.log(`[SequenceScheduler] Track ${trackIndex} is muted, skipping`);
-        return;
-      }
+      if (track.muted) return;
 
       const audioTrack = audioTracks[trackIndex];
-      if (!audioTrack?.synth) {
-        console.log(`[SequenceScheduler] Track ${trackIndex} has no synth, skipping`);
-        return;
-      }
+      if (!audioTrack?.synth) return;
 
       this.scheduleTrack(track, audioTrack, stepsPerBar, secondsPerBeat);
     });
-
-    console.log(`[SequenceScheduler] Total parts created: ${this.parts.length}`);
   }
 
   /**
@@ -87,7 +77,6 @@ export class SequenceScheduler {
   ): void {
     const synth = audioTrack.synth!;
 
-    let totalEvents = 0;
     // Process each step
     track.steps.forEach((step, stepIndex) => {
       const stepStartTime = stepIndex * secondsPerBeat;
@@ -101,13 +90,15 @@ export class SequenceScheduler {
         track.id,
       );
 
-      if (events.length > 0) {
-        console.log(`[SequenceScheduler] Track ${track.id}, Step ${stepIndex}: ${events.length} events (patternId: ${step.patternId})`);
-      }
-      totalEvents += events.length;
+      console.log(
+        `[SequenceScheduler] Track ${track.id} step ${stepIndex}:`,
+        events.length,
+        "events",
+      );
 
       // Create a Part for each event
       events.forEach((event) => {
+        console.log(`[SequenceScheduler] Scheduling event:`, event);
         const part = new Tone.Part(
           (time) => {
             // Trigger the note with calculated velocity
@@ -126,8 +117,6 @@ export class SequenceScheduler {
         this.parts.push(part);
       });
     });
-
-    console.log(`[SequenceScheduler] Track ${track.id} scheduled ${totalEvents} total events`);
   }
 
   /**
@@ -174,14 +163,12 @@ export class SequenceScheduler {
     secondsPerBeat: number,
     onStepChange: (step: number) => void,
   ): void {
-    console.log(`[SequenceScheduler] Scheduling visual feedback for ${stepsPerBar} steps, ${secondsPerBeat}s per beat`);
     for (let step = 0; step < stepsPerBar; step++) {
       const stepTime = step * secondsPerBeat;
 
       const part = new Tone.Part(
         (time) => {
           Tone.Draw.schedule(() => {
-            console.log(`[Visual] Step ${step} at time ${time}`);
             onStepChange(step);
           }, time);
         },
@@ -192,20 +179,14 @@ export class SequenceScheduler {
       part.loopEnd = stepsPerBar * secondsPerBeat;
       this.parts.push(part);
     }
-    console.log(`[SequenceScheduler] Created ${stepsPerBar} visual feedback parts`);
   }
 
   /**
    * Start playback
    */
   start(): void {
-    console.log(`[SequenceScheduler] Starting ${this.parts.length} parts`);
-    this.parts.forEach((part, index) => {
-      part.start(0);
-      console.log(`[SequenceScheduler] Started part ${index}`);
-    });
+    this.parts.forEach((part) => part.start(0));
     Tone.Transport.start();
-    console.log(`[SequenceScheduler] Transport started, state: ${Tone.Transport.state}`);
   }
 
   /**

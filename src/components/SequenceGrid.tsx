@@ -22,6 +22,9 @@ interface SequenceGridProps {
 
   /** Callback when track header is clicked (for synth controls) */
   onTrackHeaderClick?: (trackIndex: number) => void;
+
+  /** Callback to preview a note on a specific track */
+  onPreviewNote?: (trackIndex: number, noteName: string) => void;
 }
 
 export default function SequenceGrid({
@@ -30,6 +33,7 @@ export default function SequenceGrid({
   stepsPerBar,
   onTracksChange,
   onTrackHeaderClick,
+  onPreviewNote,
 }: SequenceGridProps) {
   const handleTrackChange = (trackIndex: number, updatedTrack: Track) => {
     const newTracks = [...tracks];
@@ -113,6 +117,11 @@ export default function SequenceGrid({
               onHeaderClick={
                 onTrackHeaderClick
                   ? () => onTrackHeaderClick(trackIndex)
+                  : undefined
+              }
+              onPreviewNote={
+                onPreviewNote
+                  ? (noteName) => onPreviewNote(trackIndex, noteName)
                   : undefined
               }
             />

@@ -5,7 +5,7 @@ import type { InstrumentPreset } from "../presets/instrumentPresets";
 
 interface SynthControlsProps {
   synth: Tone.PolySynth | null;
-  reverb: Tone.JCReverb | null;
+  reverb: Tone.JCReverb | Tone.Reverb | null;
   lfo: Tone.LFO | null;
   delay: Tone.FeedbackDelay | null;
   filter: Tone.Filter | null;
@@ -161,7 +161,10 @@ function SynthControls({
       filter.frequency.value = params.filterFreq;
       filter.Q.value = params.filterQ;
 
-      reverb.roomSize.value = params.reverbSize;
+      // Apply reverb parameters (check type since JCReverb has roomSize, Reverb doesn't)
+      if (reverb && "roomSize" in reverb) {
+        (reverb as Tone.JCReverb).roomSize.value = params.reverbSize;
+      }
       reverb.wet.value = params.reverbWet;
 
       delay.delayTime.value = params.delayTime;
@@ -282,8 +285,10 @@ function SynthControls({
       filter.frequency.value = params.filterFreq;
       filter.Q.value = params.filterQ;
 
-      // Apply reverb parameters
-      reverb.roomSize.value = params.reverbSize;
+      // Apply reverb parameters (check type since JCReverb has roomSize, Reverb doesn't)
+      if (reverb && "roomSize" in reverb) {
+        (reverb as Tone.JCReverb).roomSize.value = params.reverbSize;
+      }
       reverb.wet.value = params.reverbWet;
 
       // Apply delay parameters

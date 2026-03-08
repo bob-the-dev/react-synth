@@ -10,7 +10,7 @@ import * as Tone from "tone";
  */
 export interface AudioTrack {
   synth: Tone.PolySynth<any> | null;
-  reverb: Tone.JCReverb | null;
+  reverb: Tone.JCReverb | Tone.Reverb | null;
   lfo: Tone.LFO | null;
   delay: Tone.FeedbackDelay | null;
   filter: Tone.Filter | null;

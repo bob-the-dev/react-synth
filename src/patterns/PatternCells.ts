@@ -274,16 +274,19 @@ export const PATTERN_CELLS: PatternCell[] = [
         notes: [0],
         subdivisions: 1,
         duration: "4n",
+        velocity: 60, // Reduced for 3-note chord
       },
       {
         notes: [2],
         subdivisions: 1,
         duration: "4n",
+        velocity: 60,
       },
       {
         notes: [4],
         subdivisions: 1,
         duration: "4n",
+        velocity: 60,
       },
     ],
   },
@@ -297,21 +300,25 @@ export const PATTERN_CELLS: PatternCell[] = [
         notes: [0],
         subdivisions: 1,
         duration: "4n",
+        velocity: 50, // Reduced for 4-note chord
       },
       {
         notes: [2],
         subdivisions: 1,
         duration: "4n",
+        velocity: 50,
       },
       {
         notes: [4],
         subdivisions: 1,
         duration: "4n",
+        velocity: 50,
       },
       {
         notes: [6],
         subdivisions: 1,
         duration: "4n",
+        velocity: 50,
       },
     ],
   },
@@ -326,18 +333,21 @@ export const PATTERN_CELLS: PatternCell[] = [
         subdivisions: 1,
         duration: "16n",
         articulation: "staccato",
+        velocity: 60, // Reduced for 3-note chord
       },
       {
         notes: [2],
         subdivisions: 1,
         duration: "16n",
         articulation: "staccato",
+        velocity: 60,
       },
       {
         notes: [4],
         subdivisions: 1,
         duration: "16n",
         articulation: "staccato",
+        velocity: 60,
       },
     ],
   },
@@ -351,11 +361,13 @@ export const PATTERN_CELLS: PatternCell[] = [
         notes: [0],
         subdivisions: 1,
         duration: "4n",
+        velocity: 70, // Reduced for 2-note chord
       },
       {
         notes: [4],
         subdivisions: 1,
         duration: "4n",
+        velocity: 70,
       },
     ],
   },
